@@ -391,7 +391,10 @@ if __name__ == '__main__':
 
     # Set dropout layers to eval mode
     model.eval()
-    input_interaction(model, transforms, idx2word, pad_index,
-                      bos_index,
-                      eos_index)
+    # input_interaction(model, transforms, idx2word, pad_index,
+    #                   bos_index,
+    #                   eos_index)
+
+    searcher = MyGreedySearchDecoder(model,device)
+    evaluateInput(searcher,word2idx,idx2word)
     print("end chatbot")
