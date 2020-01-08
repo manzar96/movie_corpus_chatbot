@@ -270,14 +270,15 @@ class EncoderDecoder_SeqCrossEntropy(nn.Module):
         # else:
         #     decoder_hidden = encoder_hidden[-self.decoder.num_layers:]
 
-        decoder_hidden = torch.tanh(
-            self.fc(torch.cat((encoder_hidden[-2, :, :], encoder_hidden[-1,
-                                                         :, :]),
-                              dim=1)))
-        decoder_hidden = torch.unsqueeze(decoder_hidden, dim=0)
+        # decoder_hidden = torch.tanh(
+        #     self.fc(torch.cat((encoder_hidden[-2, :, :], encoder_hidden[-1,
+        #                                                  :, :]),
+        #                       dim=1)))
+        # decoder_hidden = torch.unsqueeze(decoder_hidden, dim=0)
 
+        decoder_hidden = encoder_hidden[:self.decoder.num_layers]
 
-        decoder_all_outputs = []
+        all_outputs = []
 
         for t in range(0, self.max_target_len):
             decoder_output, decoder_hidden = self.decoder(decoder_input,
@@ -289,11 +290,11 @@ class EncoderDecoder_SeqCrossEntropy(nn.Module):
             # value, pos_index = current_output.max(dim=1)
             if pos_index == eos_index:
                 break
-            decoder_all_outputs.append(pos_index)
+            all_outputs.append(pos_index)
             decoder_input = torch.unsqueeze(pos_index, dim=1)
             decoder_input = decoder_input.to(self.device)
 
-        return decoder_all_outputs
+        return all_outputs
 
 
 class EncoderDecoder(nn.Module):
