@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import collections
 import os
+import random
+import torch.nn as nn
 
 from ignite.metrics import Loss
 from torch.utils.data import DataLoader, SubsetRandomSampler
@@ -15,15 +17,14 @@ from slp.trainer.trainer import Seq2SeqTrainer
 from slp.config.moviecorpus import SPECIAL_TOKENS
 from slp.modules.loss import SequenceCrossEntropyLoss
 from slp.modules.seq2seq import EncoderDecoder, EncoderLSTM, DecoderLSTMv2, \
-    EncoderRNN,LuongAttnDecoderRNN,Seq2Seq
+    EncoderDecoder_SeqCrossEntropy
 
-from slp.trainer.seq2seqtrainer import train_epochs
 
 from torch.optim import Adam
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 COLLATE_FN = Seq2SeqCollator(device='cpu')
-MAX_EPOCHS = 50
+MAX_EPOCHS = 1
 BATCH_TRAIN_SIZE = 32
 BATCH_VAL_SIZE = 32
 min_threshold = 3
@@ -107,11 +108,16 @@ def train_test_split(dataset, batch_train, batch_val,
 
 def trainer_factory(embeddings, pad_index, bos_index, device=DEVICE):
 
-    encoder = EncoderLSTM(embeddings, emb_train=False, hidden_size=256,
+    #auto edw den einai swsto! den ginetai initialize opws prepei to
+    # embedding layer!!!
+
+    embedding = nn.Embedding(embeddings.shape[0],embeddings.shape[1])
+    encoder = EncoderLSTM(embedding,weights_matrix=None, emb_train=False, \
+                                                               hidden_size=256,
                           num_layers=1, bidirectional=True, dropout=0.4,
                           rnn_type='gru', device=DEVICE)
 
-    decoder = DecoderLSTMv2(weights_matrix=None, emb_train=False,
+    decoder = DecoderLSTMv2(embedding, weights_matrix=None, emb_train=False,
                             hidden_size=256,
                             output_size=embeddings.shape[0],
                             max_target_len=max_target_len, num_layers=1,
@@ -183,7 +189,7 @@ def input_interaction(model, transforms, idx2word, pad_index, bos_index,
 if __name__ == '__main__':
 
     new_emb_file = './cache/new_embs.txt'
-    old_emb_file = './cache/glove.6B.300d.txt'
+    old_emb_file = './cache/glove.6B.50d.txt'
     freq_words_file = './cache/freq_words.txt'
 
     dataset = MovieCorpusDataset('./data/', transforms=None)
@@ -191,7 +197,7 @@ if __name__ == '__main__':
     create_emb_file(new_emb_file, old_emb_file, freq_words_file, dataset,
                     SpacyTokenizer())
 
-    loader = EmbeddingsLoader(new_emb_file, 300, extra_tokens=SPECIAL_TOKENS)
+    loader = EmbeddingsLoader(new_emb_file, 50, extra_tokens=SPECIAL_TOKENS)
     word2idx, idx2word, embeddings = loader.load()
 
     pad_index = word2idx[SPECIAL_TOKENS.PAD.value]
@@ -210,42 +216,12 @@ if __name__ == '__main__':
 
     train_loader, val_loader = train_test_split(dataset, BATCH_TRAIN_SIZE,
                                                 BATCH_VAL_SIZE)
+
     trainer = trainer_factory(embeddings, pad_index, bos_index, device=DEVICE)
-    #final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
-    #print(f'Final score: {final_score}')
+    final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
+    print(f'Final score: {final_score}')
 
-    #input_interaction(trainer.model, transforms, idx2word, pad_index,
-    # bos_index,
-    #                   eos_index)
-    #trainer.overfit_single_batch(train_loader)
-
-
-    encoder = EncoderLSTM(embeddings, emb_train=False, hidden_size=256,
-                          num_layers=1, bidirectional=True, dropout=0.4,
-                          rnn_type='gru', device=DEVICE)
-
-    decoder = DecoderLSTMv2(weights_matrix=None, emb_train=False,
-                            hidden_size=256,
-                            output_size=embeddings.shape[0],
-                            max_target_len=max_target_len, num_layers=1,
-                            dropout=0.4, rnn_type='gru',
-                            emb_layer=encoder.embedding, bidirectional=False,
-                            device=DEVICE)
-    model = EncoderDecoder(
-        encoder, decoder, bos_index, teacher_forcing_ratio=0.7, device=DEVICE)
-
-    criterion = SequenceCrossEntropyLoss()
-    enc_optimizer = torch.optim.Adam(encoder.parameters(), lr=0.001)
-    dec_optimizer = torch.optim.Adam(decoder.parameters(), lr=0.005)
-    model_optimizer = [enc_optimizer, dec_optimizer]
-
-    model_optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    #clip=1.
-    num_epochs = 50
-    model.cuda()
-
-    train_epochs(train_loader, model, model_optimizer,
-                 criterion, num_epochs, clip=None)
-
-    input_interaction(model, transforms, idx2word, pad_index, bos_index,
+    input_interaction(trainer.model, transforms, idx2word, pad_index,
+    bos_index,
                       eos_index)
+    #trainer.overfit_single_batch(train_loader)

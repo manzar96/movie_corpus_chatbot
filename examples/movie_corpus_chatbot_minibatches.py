@@ -229,44 +229,66 @@ class MyGreedySearchDecoder(nn.Module):
         return all_tokens, all_scores
 
 
-# def evaluate(searcher, voc, sentence, max_length=MAX_LENGTH):
-#     ### Format input sentence as a batch
-#     # words -> indexes
-#     indexes_batch = [indexesFromSentence(voc, sentence)]
-#     # Create lengths tensor
-#     lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
-#     # Transpose dimensions of batch to match models' expectations
-#     # input_batch = torch.LongTensor(indexes_batch).transpose(0, 1)
-#     input_batch = torch.LongTensor(indexes_batch)
-#     # Use appropriate device
-#     input_batch = input_batch.to(device)
-#     lengths = lengths.to(device)
-#     # Decode sentence with searcher
-#     tokens, scores = searcher(input_batch, lengths, max_length)
-#     # indexes -> words
-#     decoded_words = [voc.index2word[token.item()] for token in tokens]
-#     return decoded_words
-#
-#
-# def evaluateInput(searcher, voc):
-#     input_sentence = ''
-#     while(1):
-#         try:
-#             # Get input sentence
-#             input_sentence = input('> ')
-#             # Check if it is quit case
-#             if input_sentence == 'q' or input_sentence == 'quit': break
-#             # Normalize sentence
-#             input_sentence = normalizeString(input_sentence)
-#             # Evaluate sentence
-#             output_words = evaluate(searcher, voc, input_sentence)
-#             # Format and print response sentence
-#             print(output_words)
-#             output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
-#             print('Bot:', ' '.join(output_words))
-#
-#         except KeyError:
-#             print("Error: Encountered unknown word.")
+def indexesFromSentence(word2index, sentence,eos_token):
+    return [word2index[word] for word in sentence.split(' ')] + [eos_token]
+
+
+import unicodedata
+import re
+
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+# Lowercase, trim, and remove non-letter characters
+def normalizeString(s):
+    s = unicodeToAscii(s.lower().strip())
+    s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    s = re.sub(r"\s+", r" ", s).strip()
+    return s
+
+
+def evaluate(searcher, word2idx,idx2word, sentence, max_length=max_threshold):
+    # Format input sentence as a batch
+    # words -> indexes
+    indexes_batch = [indexesFromSentence(word2idx, sentence)]
+    # Create lengths tensor
+    lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
+    # Transpose dimensions of batch to match models' expectations
+    # input_batch = torch.LongTensor(indexes_batch).transpose(0, 1)
+    input_batch = torch.LongTensor(indexes_batch)
+    # Use appropriate device
+    input_batch = input_batch.to(device)
+    lengths = lengths.to(device)
+    # Decode sentence with searcher
+    tokens, scores = searcher(input_batch, lengths, max_length)
+    # indexes -> words
+    decoded_words = [idx2word[token.item()] for token in tokens]
+    return decoded_words
+
+
+def evaluateInput(searcher, word2idx,idx2word):
+    input_sentence = ''
+    while(1):
+        try:
+            # Get input sentence
+            input_sentence = input('> ')
+            # Check if it is quit case
+            if input_sentence == 'q' or input_sentence == 'quit': break
+            # Normalize sentence
+            input_sentence = normalizeString(input_sentence)
+            # Evaluate sentence
+            output_words = evaluate(searcher,word2idx,idx2word, input_sentence)
+            # Format and print response sentence
+            print(output_words)
+            output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
+            print('Bot:', ' '.join(output_words))
+
+        except KeyError:
+            print("Error: Encountered unknown word.")
 
 
 
