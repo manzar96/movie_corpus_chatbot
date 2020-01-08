@@ -628,7 +628,7 @@ class MyGreedySearchDecoder(nn.Module):
         return all_tokens, all_scores
 
 
-def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
+def evaluate(searcher, voc, sentence, max_length=MAX_LENGTH):
     ### Format input sentence as a batch
     # words -> indexes
     indexes_batch = [indexesFromSentence(voc, sentence)]
@@ -647,7 +647,7 @@ def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
     return decoded_words
 
 
-def evaluateInput(encoder, decoder, searcher, voc):
+def evaluateInput(searcher, voc):
     input_sentence = ''
     while(1):
         try:
@@ -658,7 +658,7 @@ def evaluateInput(encoder, decoder, searcher, voc):
             # Normalize sentence
             input_sentence = normalizeString(input_sentence)
             # Evaluate sentence
-            output_words = evaluate(encoder, decoder, searcher, voc, input_sentence)
+            output_words = evaluate(searcher, voc, input_sentence)
             # Format and print response sentence
             print(output_words)
             output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
@@ -759,6 +759,6 @@ decoder.eval()
 searcher = MyGreedySearchDecoder(encoder, decoder,device)
 
 # Begin chatting (uncomment and run the following line to begin)
-evaluateInput(encoder,decoder,searcher, voc)
+evaluateInput(searcher, voc)
 
 print("end chatbot")

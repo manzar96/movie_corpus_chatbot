@@ -443,7 +443,7 @@ print("max_target_len:", max_target_len)
 
 import ipdb;ipdb.set_trace()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-teacher_forcing_ratio=0.6
+teacher_forcing_ratio=0.9
 
 def maskNLLLoss(inp, target, mask):
     nTotal = mask.sum()
@@ -572,7 +572,7 @@ class MyGreedySearchDecoder(nn.Module):
         return all_tokens, all_scores
 
 
-def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
+def evaluate(searcher, voc, sentence, max_length=MAX_LENGTH):
     ### Format input sentence as a batch
     # words -> indexes
     indexes_batch = [indexesFromSentence(voc, sentence)]
@@ -591,7 +591,7 @@ def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
     return decoded_words
 
 
-def evaluateInput(encoder, decoder, searcher, voc):
+def evaluateInput(searcher, voc):
     input_sentence = ''
     while(1):
         try:
@@ -602,7 +602,7 @@ def evaluateInput(encoder, decoder, searcher, voc):
             # Normalize sentence
             input_sentence = normalizeString(input_sentence)
             # Evaluate sentence
-            output_words = evaluate(encoder, decoder, searcher, voc, input_sentence)
+            output_words = evaluate(searcher, voc, input_sentence)
             # Format and print response sentence
             print(output_words)
             output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
@@ -618,8 +618,8 @@ attn_model = 'dot'
 #attn_model = 'general'
 #attn_model = 'concat'
 hidden_size = 500
-encoder_n_layers = 1
-decoder_n_layers = 1
+encoder_n_layers = 2
+decoder_n_layers = 2
 dropout = 0.2
 batch_size = 64
 
@@ -675,8 +675,7 @@ print('Model built and ready to go!')
 
 # Configure training/optimization
 clip = 50.0
-learning_rate = 0.0001
-decoder_learning_ratio = 5.0
+learning_rate = 0.001
 n_iteration = 10
 print_every = 1
 save_every = 500
@@ -702,6 +701,6 @@ model.eval()
 searcher = MyGreedySearchDecoder(model.encoder,model.decoder,device)
 
 # Begin chatting (uncomment and run the following line to begin)
-evaluateInput(model.encoder,model.decoder,searcher, voc)
+evaluateInput(searcher, voc)
 
 print("end chatbot")
