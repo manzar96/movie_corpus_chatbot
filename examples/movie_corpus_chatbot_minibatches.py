@@ -4,9 +4,12 @@ import collections
 import os
 import random
 import torch.nn as nn
+import unicodedata
+import re
+import torch.nn.functional as f
 
 from ignite.metrics import Loss
-from torch.utils.data import DataLoader, SubsetRandomSampler,RandomSampler,BatchSampler
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision.transforms import Compose
 
 from slp.util.embeddings import EmbeddingsLoader
@@ -16,16 +19,11 @@ from slp.data.collators import Seq2SeqCollator
 from slp.trainer.trainer import Seq2SeqTrainer
 from slp.config.moviecorpus import SPECIAL_TOKENS
 from slp.modules.loss import SequenceCrossEntropyLoss
-from slp.modules.seq2seq import EncoderDecoder, EncoderLSTM, DecoderLSTMv2, \
+from slp.modules.seq2seq import EncoderLSTM, DecoderLSTMv2,  \
     EncoderDecoder_SeqCrossEntropy
-
-from slp.trainer.seq2seqtrainer import train_epochs
-
-from torch.optim import Adam
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 COLLATE_FN = Seq2SeqCollator(device='cpu')
-MAX_EPOCHS = 1
 BATCH_TRAIN_SIZE = 32
 BATCH_VAL_SIZE = 32
 min_threshold = 3
@@ -142,9 +140,8 @@ def train(input_variable, lengths, target_variable,model,
 
 
 def training_mini_batches(train_loader,model, model_optimizer, n_iteration, clip):
-
-
-    training_batches = [random.choice(list(train_loader))for _ in range(
+    train_list = list(train_loader)
+    training_batches = [random.choice(train_list)for _ in range(
         n_iteration)]
 
     # Initializations
@@ -161,8 +158,6 @@ def training_mini_batches(train_loader,model, model_optimizer, n_iteration, clip
         # Extract fields from batch
         input_variable, input_lengths, target_variable,lengths_target = \
             training_batch
-        input_variable = input_variable.transpose(0,1)
-        target_variable = target_variable.transpose(0,1)
 
         # Run a training iteration with batch
         loss = train(input_variable, input_lengths, target_variable, model,
@@ -190,15 +185,12 @@ def training_mini_batches(train_loader,model, model_optimizer, n_iteration, clip
         #     }, os.path.join(directory, '{}_{}.tar'.format(iteration, 'checkpoint')))
 
 
-
-import torch.nn.functional as f
-
 class MyGreedySearchDecoder(nn.Module):
     def __init__(self, model,device):
         super(MyGreedySearchDecoder, self).__init__()
         self.encoder = model.encoder
         self.decoder = model.decoder
-        self.SOS_token = model.bos_index
+        self.SOS_token = model.bos_indx
         self.device=device
 
     def forward(self, input_seq, input_length, max_length):
@@ -230,11 +222,10 @@ class MyGreedySearchDecoder(nn.Module):
 
 
 def indexesFromSentence(word2index, sentence,eos_token):
-    return [word2index[word] for word in sentence.split(' ')] + [eos_token]
-
-
-import unicodedata
-import re
+    #return [word2index[word] for word in sentence.split(' ')] + [eos_token]
+    tok=SpacyTokenizer()
+    import ipdb;ipdb.set_trace()
+    return [word2index[word] for word in tok(sentence)] + [eos_token]
 
 def unicodeToAscii(s):
     return ''.join(
@@ -254,7 +245,8 @@ def normalizeString(s):
 def evaluate(searcher, word2idx,idx2word, sentence, max_length=max_threshold):
     # Format input sentence as a batch
     # words -> indexes
-    indexes_batch = [indexesFromSentence(word2idx, sentence)]
+    eos_index = word2idx[SPECIAL_TOKENS.EOS.value]
+    indexes_batch = [indexesFromSentence(word2idx, sentence, eos_index)]
     # Create lengths tensor
     lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
     # Transpose dimensions of batch to match models' expectations
@@ -284,35 +276,12 @@ def evaluateInput(searcher, word2idx,idx2word):
             output_words = evaluate(searcher,word2idx,idx2word, input_sentence)
             # Format and print response sentence
             print(output_words)
-            output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
+            output_words[:] = [x for x in output_words if not (x == '[EOS]' or
+                                                               x == '[PAD]')]
             print('Bot:', ' '.join(output_words))
 
         except KeyError:
             print("Error: Encountered unknown word.")
-
-
-
-def input_interaction(model, transforms, idx2word, pad_index, bos_index,
-                      eos_index):
-
-    model.eval()
-    input_sentence = ""
-    while True:
-
-    # Get input response:
-        input_sentence = input(">")
-        # Check if it is quit case
-        if input_sentence == 'q' or input_sentence == 'quit':
-            break
-
-        input_seq = transforms(input_sentence)
-        model_outputs = model.evaluate(input_seq,eos_index)
-        #print(model_outputs)
-        answer = ""
-        for output in model_outputs:
-            answer += idx2word[output.item()]+" "
-        print(answer)
-
 
 if __name__ == '__main__':
 
@@ -376,7 +345,7 @@ if __name__ == '__main__':
 
     clip = 50.0
     learning_rate = 0.001
-    n_iteration = 10
+    n_iteration = 4000
     print_every = 1
 
     # Initialize optimizers
@@ -391,9 +360,6 @@ if __name__ == '__main__':
 
     # Set dropout layers to eval mode
     model.eval()
-    # input_interaction(model, transforms, idx2word, pad_index,
-    #                   bos_index,
-    #                   eos_index)
 
     searcher = MyGreedySearchDecoder(model,device)
     evaluateInput(searcher,word2idx,idx2word)

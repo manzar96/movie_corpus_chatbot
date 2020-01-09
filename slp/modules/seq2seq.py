@@ -159,14 +159,6 @@ class DecoderLSTMv2(nn.Module):
             decoder_output = decoder_output[:, :, :self.hidden_size] + \
                              decoder_output[:, :, self.hidden_size:]
         decoder_output = self.out(decoder_output)
-
-        # implemented for testing!!!
-        """Me mask NLLL loss"""
-        # current_output = torch.squeeze(decoder_output, dim=1)
-        # top_index = f.softmax(current_output, dim=1)
-        # return top_index, decoder_hidden
-
-        """Gia Sequence Cross Entropy Loss"""
         return decoder_output, decoder_hidden
 
 
@@ -285,7 +277,7 @@ class EncoderDecoder_SeqCrossEntropy(nn.Module):
                                                           decoder_hidden)
 
             current_output = torch.squeeze(decoder_output, dim=1)
-            top_index = f.log_softmax(current_output, dim=1)
+            top_index = f.softmax(current_output, dim=1)
             value, pos_index = top_index.max(dim=1)
             # value, pos_index = current_output.max(dim=1)
             if pos_index == eos_index:
