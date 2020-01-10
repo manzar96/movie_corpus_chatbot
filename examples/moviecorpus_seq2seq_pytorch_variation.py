@@ -286,7 +286,7 @@ def evaluateInput(searcher, word2idx,idx2word):
 if __name__ == '__main__':
 
     new_emb_file = './cache/new_embs.txt'
-    old_emb_file = './cache/glove.6B.50d.txt'
+    old_emb_file = './cache/glove.6B.300d.txt'
     freq_words_file = './cache/freq_words.txt'
 
     dataset = MovieCorpusDataset('./data/', transforms=None)
@@ -294,7 +294,7 @@ if __name__ == '__main__':
     create_emb_file(new_emb_file, old_emb_file, freq_words_file, dataset,
                     SpacyTokenizer())
 
-    loader = EmbeddingsLoader(new_emb_file, 50, extra_tokens=SPECIAL_TOKENS)
+    loader = EmbeddingsLoader(new_emb_file, 300, extra_tokens=SPECIAL_TOKENS)
     word2idx, idx2word, embeddings = loader.load()
 
     pad_index = word2idx[SPECIAL_TOKENS.PAD.value]
@@ -344,13 +344,13 @@ if __name__ == '__main__':
     criterion = SequenceCrossEntropyLoss()
 
     clip = 50.0
-    learning_rate = 0.001
+    learning_rate = 0.0001
     n_iteration = 4000
     print_every = 1
 
     # Initialize optimizers
     print('Building optimizer ...')
-    model_optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    model_optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # Run training iterations
     print("Starting Training!")
