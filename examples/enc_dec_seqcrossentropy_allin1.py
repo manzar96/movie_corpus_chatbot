@@ -676,7 +676,7 @@ print('Model built and ready to go!')
 # Configure training/optimization
 clip = 50.0
 learning_rate = 0.001
-n_iteration = 10
+n_iteration = 4000
 print_every = 1
 save_every = 500
 criterion = SequenceCrossEntropyLoss()
