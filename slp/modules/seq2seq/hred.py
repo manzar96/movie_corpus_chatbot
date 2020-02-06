@@ -26,19 +26,19 @@ class Encoder(nn.Module):
                                  batch_first=batch_first,
                                  layers=num_layers,
                                  bidirectional=bidirectional,
+                                 rnn_type='gru',
                                  merge_bi='cat', dropout=dropout,
                                  attention=attention,
                                  device=self.device)
 
     def forward(self, inputs, lengths):
-        out, hidden = self.word_rnn(inputs, lengths)
+        last_out, hidden = self.word_rnn(inputs, lengths)
 
-        #1. to word rnn prepei na girisei kai hidden state!!!
         #2. an einai bidirectional prepei na enwsw ta hidden states forward
         # kai backward kai episis na kanw L2 pooling over!!!
         #3.  Episis na tsekarw an kanthe fora to hidden einai 0 !!!
 
-        return out, hidden
+        return last_out, hidden
 
 
 class ContextEncoder(nn.Module):
@@ -90,10 +90,7 @@ class ContextEncoder(nn.Module):
         # se auth thn periptwsi to seq len einai 2 afou exw 2 queries!!
         #encoded_context shape: [bactchsize,seqlen,hiddensize of encoder]
         # Se auth thn periptwsi den xreiazetai pack padded seq!!!!
-
         out, hidden = self.rnn(encoded_context)
-
-        # return last hidden!!
         return out, hidden
 
 
@@ -280,6 +277,7 @@ class HREDDecoder(nn.Module):
         context_encoded = dec_hidden
         max_seq_len = targets.shape[1]
         decoder_outputs = []
+        import ipdb;ipdb.set_trace()
 
         for i in range(0, max_seq_len):
             use_teacher_forcing = True if (
@@ -317,7 +315,7 @@ class HREDDecoder(nn.Module):
 
 class HRED(nn.Module):
     def __init__(self, options, emb_size, vocab_size, enc_embeddings,
-                 dec_embeddings,device):
+                 dec_embeddings, sos_index, device):
         super(HRED, self).__init__()
         self.enc = Encoder(input_size=emb_size,
                            vocab_size=vocab_size,
@@ -357,7 +355,9 @@ class HRED(nn.Module):
                            device=device)
 
         self.batch_first = options.batch_first
-
+        self.options = options
+        self.sos_index = sos_index
+        self.device = device
         #we use a linear layer and tanh act function to initialize the
         # hidden of the decoder.
         # paper reference: A Hierarchical Recurrent Encoder-Decoder
@@ -369,22 +369,52 @@ class HRED(nn.Module):
 
     def forward(self, u1, l1, u2, l2, u3, l3):
 
-        _, last_hidden1, _ = self.enc(u1, l1)
-        _, last_hidden2, _ = self.enc(u2, l2)
+        _, hidden1 = self.enc(u1, l1)
+        _, hidden2 = self.enc(u2, l2)
 
-        # unsqueeze last hidden dim=1
-        context_input = torch.cat((last_hidden1, last_hidden2), dim=1)
-        # no need to use pack padded seq!!
-        _, con_last_hidden, _ = self.cont_enc(context_input)
+        """
+        we take the last layer of the hidden state!
+        (Supposing it is a gru)
+        """
+        if self.options.enc_bidirectional:
+            hidden1 = hidden1[-2:]
+            hidden2 = hidden2[-2:]
+        else:
+            hidden1 = hidden1[-1]
+            hidden2 = hidden2[-1]
 
-        dec_init_hidden = self.tanh(self.cont_enc_to_dec(con_last_hidden))
+        hidden1 = hidden1.unsqueeze(dim=1)
+        hidden2 = hidden2.unsqueeze(dim=1)
+        context_input = torch.cat((hidden1, hidden2), dim=1)
+
+        _, contenc_hidden = self.cont_enc(context_input)
+
+        """
+        we take the last layer of the hidden state!
+        (Supposing it is a gru)
+        """
+        if self.options.contenc_bidirectional:
+            contenc_hidden = contenc_hidden[-2:]
+        else:
+            contenc_hidden = contenc_hidden[-1]
+
+        dec_init_hidden = self.tanh(self.cont_enc_to_dec(contenc_hidden))
         # edw mia view to dec_init_hidden
-        # init_hidn = init_hidn.view(self.num_lyr, target.size(0), self.hid_size)
-
+        dec_init_hidden = dec_init_hidden.view(self.options.dec_num_layers,
+                                               u3.shape[0],
+                                               self.options.dec_hidden_size)
 
         # edw ftiaxnw to input (nomizw einai midenika alla sto paper vazei 1)
+        # decoder_input = [self.sos_index for _ in range(u3.shape[0])]
+        # decoder_input = torch.tensor(decoder_input).long()
+        # decoder_input = decoder_input.unsqueeze(dim=1)
+        # decoder_input = decoder_input.to(self.device)
+
         decoder_input = torch.zeros(u3.shape[0], 1).long()
+        decoder_input = decoder_input.to(self.device)
 
         dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
 
+        import ipdb;ipdb.set_trace()
+        print("eftasa")
         # pairnw outputs k to pernaw apo max_out layer
