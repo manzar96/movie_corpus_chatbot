@@ -226,7 +226,7 @@ class HREDDecoder(nn.Module):
 
         self.embed_in = Embed(num_embeddings=self.vocab_size,
                               embedding_dim=self.emb_size,
-                              embeddings=self.embeddings ,
+                              embeddings=self.embeddings,
                               dropout=self.embeddings_dropout,
                               trainable=self.finetune_embeddings)
 
@@ -237,12 +237,8 @@ class HREDDecoder(nn.Module):
                                       self.emb_size*2, False)
         self.emb_to_emb2 = nn.Linear(self.emb_size, self.emb_size*2, True)
 
-        self.embed_out = Embed(num_embeddings=self.vocab_size,
-                              embedding_dim=self.emb_size,
-                              embeddings=self.embeddings,
-                              dropout=self.embeddings_dropout,
-                              trainable=self.finetune_embeddings)
-        self.max_out = Maxout2(self.emb_size*2,self.emb_size,2)
+        self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
+        self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
 
 
     """
@@ -277,25 +273,24 @@ class HREDDecoder(nn.Module):
         context_encoded = dec_hidden
         max_seq_len = targets.shape[1]
         decoder_outputs = []
-        import ipdb;ipdb.set_trace()
 
         for i in range(0, max_seq_len):
             use_teacher_forcing = True if (
                     random.random() < self.teacher_forcing_ratio) else False
 
             if use_teacher_forcing:
-
                 input_embed = self.embed_in(dec_input)
                 if enc_output is None:
-                    dec_out, hidden = self.rnn(input_embed, dec_hidden)
+                    dec_out, dec_hidden = self.rnn(input_embed, hx=dec_hidden)
                 else:
                     assert False, "Attention is not implemented"
 
                 # ω(dm,n−1, wm,n−1) = Ho dm,n−1 + Eo wm,n−1 + bo   (olo auto se
                 # diastasi emb_size*2
-                emb_inf_vec = self.emb_to_emb2(input_embed)
-                dec_inf_vec = self.dec_to_emb2(dec_out)
-                cont_inf_vec = self.cont_to_emb2(context_encoded)
+                emb_inf_vec = self.emb_to_emb2(input_embed).squeeze(dim=1)
+                dec_inf_vec = self.dec_to_emb2(dec_out).squeeze(dim=1)
+                cont_inf_vec = self.cont_to_emb2(context_encoded).squeeze(
+                    dim=0)
 
                 total_out = dec_inf_vec + cont_inf_vec + emb_inf_vec
 
@@ -304,14 +299,14 @@ class HREDDecoder(nn.Module):
                 out = self.embed_out(total_out)
 
                 decoder_outputs.append(out)
-                dec_input = targets[:, i]
+                dec_input = targets[:, i].unsqueeze(dim=1)
 
             else:
                 dec_out, dec_hidden = self.forward_step(dec_input,
                                                         dec_hidden, enc_output)
 
-
-        # return decoder_outputs,decoder_hidden
+        dec_outputs = torch.stack(decoder_outputs).transpose(0,1)
+        return dec_outputs
 
 class HRED(nn.Module):
     def __init__(self, options, emb_size, vocab_size, enc_embeddings,
@@ -403,6 +398,7 @@ class HRED(nn.Module):
         dec_init_hidden = dec_init_hidden.view(self.options.dec_num_layers,
                                                u3.shape[0],
                                                self.options.dec_hidden_size)
+        # edw isws thelei contiguous!!!
 
         # edw ftiaxnw to input (nomizw einai midenika alla sto paper vazei 1)
         # decoder_input = [self.sos_index for _ in range(u3.shape[0])]
@@ -415,6 +411,5 @@ class HRED(nn.Module):
 
         dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
 
-        import ipdb;ipdb.set_trace()
-        print("eftasa")
-        # pairnw outputs k to pernaw apo max_out layer
+        return dec_out
+
