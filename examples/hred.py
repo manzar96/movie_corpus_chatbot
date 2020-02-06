@@ -11,7 +11,7 @@ from torch.optim import Adam
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.data.utils import train_test_split
 from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
-from slp.data.DummySubtleTriples import SubTriples2
+from slp.data.SubtleTriples import SubTriples2
 from slp.data.collators import HRED_Collator
 from slp.util.embeddings import EmbeddingsLoader
 from slp.trainer.trainer import HREDTrainer
@@ -38,7 +38,7 @@ def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index
         'loss': Loss(criterion)
     }
 
-    trainer = HREDTrainer(model, optimizer, checkpoint_dir=None,
+    trainer = HREDTrainer(model, optimizer, # checkpoint_dir=None,
                                       metrics=metrics, non_blocking=True,
                                       retain_graph=False, patience=5,
                                       device=device, loss_fn=criterion)
