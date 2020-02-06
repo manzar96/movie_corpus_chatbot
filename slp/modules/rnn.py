@@ -73,8 +73,10 @@ class RNN(nn.Module):
         if self.packed_sequence:
             out = self.unpack(out, lengths)
         out = self.drop(out)
-
         last_timestep = self._final_output(out, lengths)
+        """
+        last timestep is the output for last unpadded timestep!
+        """
         return out, last_timestep, hidden
 
 
@@ -142,11 +144,15 @@ class WordRNN2(nn.Module):
 
     def forward(self, x, lengths):
         x = self.embed(x)
-        out, last_hidden, _ = self.rnn(x, lengths)
+        out, last_out, hidden = self.rnn(x, lengths)
         if self.attention is not None:
             out, _ = self.attention(
                 out, attention_mask=pad_mask(lengths, device=self.device))
             out = out.sum(1)
         else:
-            out = last_hidden
-        return out
+            out = last_out
+        """
+        Word rnn returns as output the output of the last unpadded timestep 
+        (attentions may have been applied)
+        """
+        return out, hidden
