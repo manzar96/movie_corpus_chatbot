@@ -17,8 +17,8 @@ from slp.util.embeddings import EmbeddingsLoader
 from slp.trainer.trainer import HREDTrainer
 from slp.modules.loss import SequenceCrossEntropyLoss
 from slp.modules.seq2seq.hred import HRED
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-COLLATE_FN = HRED_Collator(device='cpu')
 MAX_EPOCHS = 10
 BATCH_TRAIN_SIZE = 32
 BATCH_VAL_SIZE = 32
@@ -26,7 +26,8 @@ BATCH_VAL_SIZE = 32
 
 def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index, device=DEVICE):
 
-    model = HRED(options,emb_dim,vocab_size,embeddings,embeddings,device )
+    model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
+                 sos_index, device)
 
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
@@ -47,26 +48,7 @@ def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index
 
 if __name__ == '__main__':
 
-    emb_file = './cache/glove.6B.50d.txt'
-    emb_dim = 50
-    word2idx, idx2word, embeddings = EmbeddingsLoader(emb_file, emb_dim,
-                                                      extra_tokens=
-                                                      HRED_SPECIAL_TOKENS
-                                                      ).load()
-    vocab_size = len(word2idx)
-    tokenizer = SpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
-    to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
-    to_tensor = ToTensor()
-    dataset = SubTriples2('./data/corpus0sDialogues.txt', transforms=[
-        tokenizer, to_token_ids, to_tensor])
 
-    print(dataset[0])
-    train_loader, val_loader = train_test_split(dataset, BATCH_TRAIN_SIZE,
-                                                BATCH_VAL_SIZE, COLLATE_FN)
-
-    pad_index = word2idx[HRED_SPECIAL_TOKENS.PAD.value]
-    sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
-    eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
 
     parser = argparse.ArgumentParser(description='HRED parameter options')
     parser.add_argument('-n', dest='name', help='enter suffix for model files')
@@ -91,7 +73,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         action='store_true',
-                        default=300, help='context encoder input size')
+                        default=512, help='context encoder input size')
     parser.add_argument('-conthiddensize', dest='contenc_hidden_size',
                         action='store_true',
                         default=512, help='context encoder hidden size')
@@ -134,9 +116,38 @@ if __name__ == '__main__':
                         default=True, help='batch first')
     parser.add_argument('-tf', dest='teacherforcing_ratio',
                         action='store_true',
-                        default=0.8, help='teacher forcing ratio')
+                        default=1., help='teacher forcing ratio')
 
     options = parser.parse_args()
     print(options)
-    trainer = trainer_factory(options, emb_dim,vocab_size,embeddings,
+
+
+    emb_file = './cache/glove.6B.50d.txt'
+    emb_dim = 50
+    word2idx, idx2word, embeddings = EmbeddingsLoader(emb_file, emb_dim,
+                                                      extra_tokens=
+                                                      HRED_SPECIAL_TOKENS
+                                                      ).load()
+    vocab_size = len(word2idx)
+    tokenizer = SpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
+    to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
+    to_tensor = ToTensor()
+    dataset = SubTriples2('./data/corpus0sDialogues.txt', transforms=[
+        tokenizer, to_token_ids, to_tensor])
+
+    collator_fn = HRED_Collator(device='cpu')
+    train_loader, val_loader = train_test_split(dataset,
+                                                batch_train=BATCH_TRAIN_SIZE,
+                                                batch_val=BATCH_VAL_SIZE,
+                                                collator_fn=collator_fn,
+                                                test_size=0.2)
+
+    pad_index = word2idx[HRED_SPECIAL_TOKENS.PAD.value]
+    sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
+    eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
+    print(sos_index)
+    trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
                               pad_index, sos_index, device=DEVICE)
+
+    final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
+    print("END")
