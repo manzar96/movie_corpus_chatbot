@@ -1,25 +1,37 @@
 from torch.utils.data import Dataset
 import glob
 import os
-
+import re
 
 class SemaineDataset(Dataset):
     def __init__(self, directory, transforms=None, train=True):
 
         self.read_data(directory)
 
-
     def read_data(self, directory):
         path = os.path.join(directory, "Sessions")
-        session_files = []
-        for i in range(1, 3):
+        counter = 0
+        for i in range(1,3):
             new_path = os.path.join(path, str(i))
-            file_list = glob.glob(os.path.join(new_path, "*.txt"))
-            session_files.append(file_list)
-        for session in session_files:
-            transcripts = glob.glob('aligned_Transcript_*.txt')
-            word_level_user = glob.glob('wordLevel_*_user')
-            word_level_operator = glob.glob('wordLevel_*_operator')
+            transcript = glob.glob(os.path.join(new_path,
+                                                 'alignedTranscript_*.txt'))
+            word_level_user = glob.glob(os.path.join(new_path,
+                                                     'wordLevel*user'))
+            word_level_operator = glob.glob(os.path.join(
+                new_path, 'wordLevel*operator'))
+
+            if not transcript == []:
+                with open(transcript[0],"r")as tfile:
+                    lines = tfile.readlines()
+                    for line in lines:
+                        start_time = line.split("\t")[0].split(" ")[0]
+                        end_time = line.split("\t")[0].split(" ")[1]
+                        utt = line.split("\t")[1]
+                        utt = re.sub("\([^)]+\).","",utt)
+                        utt = utt.strip()
+                        print(start_time)
+                        print(end_time)
+                        print(utt)
 
     def map(self, t):
         self.transforms.append(t)
