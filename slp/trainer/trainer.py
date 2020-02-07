@@ -365,5 +365,5 @@ class HREDTrainer(SequentialTrainer):
             self.parse_batch(batch)
         y_pred = self.model(inputs1, lengths1, inputs2, lengths2, inputs3,
                             lengths3)
-
+        # TODO: BEAMSEARCH!!
         return y_pred, inputs3
