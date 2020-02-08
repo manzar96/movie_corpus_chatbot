@@ -11,7 +11,7 @@ class SemaineDataset(Dataset):
 
     def read_data(self, directory):
         path = os.path.join(directory, "Sessions")
-        for i in range(1,3):
+        for i in range(1, 3):
             new_path = os.path.join(path, str(i))
             transcript = glob.glob(os.path.join(new_path,
                                                  'alignedTranscript_*.txt'))
@@ -20,6 +20,13 @@ class SemaineDataset(Dataset):
             word_level_operator = glob.glob(os.path.join(
                 new_path, 'wordLevel*operator'))
             arousal_files = glob.glob(os.path.join(new_path, '*DA.txt'))
+
+            if not transcript == []:
+                trans = open(os.path.join(new_path, "transcription.txt"), "w")
+                transcript = open(transcript,"r")
+                word_user = open(word_level_user,"r")
+                word_level_operator = open(word_level_operator,"r")
+
 
             line_label_counter = 0
             if not arousal_files == []:
