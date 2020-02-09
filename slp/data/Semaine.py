@@ -7,12 +7,22 @@ import re
 class SemaineDataset(Dataset):
     def __init__(self, directory, transforms=None, train=True):
 
-        self.read_data(directory)
+        self.create_transcriptions(directory)
+        self.create_datafile(directory)
 
-    def read_data(self, directory):
+    def create_datafile(self, directory):
         path = os.path.join(directory, "Sessions")
         for i in range(1, 129):
-            print(i)
+            new_path = os.path.join(path, str(i))
+            transcriptions = os.path.join(new_path, 'transcriptions.txt')
+            arousal_files = glob.glob(os.path.join(new_path, '*DA.txt'))
+            valence_files = glob.glob(os.path.join(new_path, '*DV.txt'))
+
+            #read labels and create line ,label file
+
+    def create_transcriptions(self, directory):
+        path = os.path.join(directory, "Sessions")
+        for i in range(1, 129):
             new_path = os.path.join(path, str(i))
             transcript = glob.glob(os.path.join(new_path,
                                                  'alignedTranscript_*.txt'))
@@ -20,9 +30,9 @@ class SemaineDataset(Dataset):
                                                      'wordLevel*user'))
             word_level_operator = glob.glob(os.path.join(
                 new_path, 'wordLevel*operator'))
-            print
-            print(word_level_user)
+
             arousal_files = glob.glob(os.path.join(new_path, '*DA.txt'))
+            valence_files = glob.glob(os.path.join(new_path, '*DV.txt'))
 
             if not transcript == []:
                 trans = open(os.path.join(new_path, "transcription.txt"), "w")
@@ -38,37 +48,43 @@ class SemaineDataset(Dataset):
 
                 for line in t_lines:
                     if line.split("\t")[0].split(" ")[2] == "User":
-                        if counter_user_lines<len(user_lines):
-                            time_start = user_lines[
-                                counter_user_lines].split(" ")[0]
+                        if counter_user_lines < len(user_lines):
+                            if user_lines[counter_user_lines][0] == ".":
+                                counter_user_lines += 2
+                            else:
+                                time_start = user_lines[
+                                    counter_user_lines].split(" ")[0]
 
-                            while counter_user_lines<len(user_lines) and not (\
-                                    user_lines[counter_user_lines][0] == "-"):
+                                while counter_user_lines<len(user_lines) and not (\
+                                        user_lines[counter_user_lines][0] == "-"):
 
-                                if user_lines[counter_user_lines][0] == ".":
-                                    pass
-                                else:
-                                    time_end = user_lines[
-                                        counter_user_lines].split(" ")[1]
-                                counter_user_lines += 1
-                            counter_user_lines+=1
+                                    if user_lines[counter_user_lines][0] == ".":
+                                        pass
+                                    else:
+                                        time_end = user_lines[
+                                            counter_user_lines].split(" ")[1]
+                                    counter_user_lines += 1
+                                counter_user_lines+=1
 
                     else:
                         if counter_operator_lines < len(operator_lines):
-                            time_start = operator_lines[
-                                counter_operator_lines].split(" ")[0]
+                            if operator_lines[counter_operator_lines][0] == ".":
+                                counter_operator_lines += 2
+                            else:
+                                time_start = operator_lines[
+                                    counter_operator_lines].split(" ")[0]
 
-                            while counter_operator_lines<len(
-                                operator_lines) and (not operator_lines[counter_operator_lines][0] \
-                                      == "-"):
-                                if operator_lines[counter_operator_lines][0] == ".":
-                                    pass
-                                else:
-                                    time_end = operator_lines[
-                                        counter_operator_lines].split(" ")[1]
+                                while counter_operator_lines<len(
+                                    operator_lines) and (not operator_lines[counter_operator_lines][0] \
+                                          == "-"):
+                                    if operator_lines[counter_operator_lines][0] == ".":
+                                        pass
+                                    else:
+                                        time_end = operator_lines[
+                                            counter_operator_lines].split(" ")[1]
+                                    counter_operator_lines += 1
+
                                 counter_operator_lines += 1
-
-                            counter_operator_lines += 1
 
                     trans.write((time_start +"\t"+time_end+"\t" +line.split(
                         '\t')[1]))
