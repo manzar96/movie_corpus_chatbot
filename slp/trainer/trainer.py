@@ -367,3 +367,19 @@ class HREDTrainer(SequentialTrainer):
                             lengths3)
         # TODO: BEAMSEARCH!!
         return y_pred, inputs3
+
+    def train_step(self: TrainerType,
+                   engine: Engine,
+                   batch: List[torch.Tensor]) -> float:
+        self.model.train()
+        y_pred, targets = self.get_predictions_and_targets(batch)
+        loss = self.loss_fn(y_pred, targets)  # type: ignore
+        if self.parallel:
+            loss = loss.mean()
+        loss = loss / self.accumulation_steps
+        loss.backward(retain_graph=self.retain_graph)
+        if (self.trainer.state.iteration + 1) % self.accumulation_steps == 0:
+            self.optimizer.step()  # type: ignore
+            self.optimizer.zero_grad()
+        loss_value: float = loss.item()
+        return loss_value
