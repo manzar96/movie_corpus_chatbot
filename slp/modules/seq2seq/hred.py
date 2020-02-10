@@ -297,16 +297,17 @@ class HREDDecoder(nn.Module):
                 #after max_out total_out dims:  emb_size
                 total_out = self.max_out(total_out)
                 out = self.embed_out(total_out)
-
                 decoder_outputs.append(out)
+
                 dec_input = targets[:, i].unsqueeze(dim=1)
 
             else:
-                dec_out, dec_hidden = self.forward_step(dec_input,
-                                                        dec_hidden, enc_output)
+                assert False, "not implemented yet!!"
+                # TODO: no teacher forcing case!!!
 
-        dec_outputs = torch.stack(decoder_outputs).transpose(0,1)
-        return dec_outputs
+        dec_output = torch.stack(decoder_outputs).transpose(0,1)
+        del decoder_outputs
+        return dec_output
 
 class HRED(nn.Module):
     def __init__(self, options, emb_size, vocab_size, enc_embeddings,
