@@ -12,6 +12,7 @@ from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.data.utils import train_test_split
 from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.SubtleTriples import SubTriples2
+from slp.data.Semaine import SemaineDatasetTriplesOnly
 from slp.data.collators import HRED_Collator
 from slp.util.embeddings import EmbeddingsLoader
 from slp.trainer.trainer import HREDTrainer
@@ -20,8 +21,8 @@ from slp.modules.seq2seq.hred import HRED
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 MAX_EPOCHS = 10
-BATCH_TRAIN_SIZE = 32
-BATCH_VAL_SIZE = 32
+BATCH_TRAIN_SIZE = 16
+BATCH_VAL_SIZE = 16
 
 
 def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index, device=DEVICE):
@@ -132,8 +133,11 @@ if __name__ == '__main__':
     tokenizer = SpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTriples2('./data/corpus0sDialogues.txt', transforms=[
-        tokenizer, to_token_ids, to_tensor])
+    # dataset = SubTriples2('./data/corpus0sDialogues.txt', transforms=[
+    #     tokenizer, to_token_ids, to_tensor])
+    dataset = SemaineDatasetTriplesOnly(
+        "./data/semaine-database_download_2020-01-21_11_41_49", transforms=[
+            tokenizer, to_token_ids, to_tensor])
 
     collator_fn = HRED_Collator(device='cpu')
     train_loader, val_loader = train_test_split(dataset,
@@ -146,8 +150,35 @@ if __name__ == '__main__':
     sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
     eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
     print(sos_index)
-    trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-                              pad_index, sos_index, device=DEVICE)
+    #
 
-    final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
-    print("END")
+
+    model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
+                 sos_index, DEVICE)
+
+    optimizer = Adam(
+        [p for p in model.parameters() if p.requires_grad],
+        lr=1e-3, weight_decay=1e-6)
+
+    criterion = SequenceCrossEntropyLoss(pad_index)
+
+    model.to(DEVICE)
+    for epoch in range(MAX_EPOCHS):
+
+        model.train()
+
+        for batch_idx, batch in enumerate(train_loader):
+            u1, l1, u2, l2, u3, l3 = batch
+            u1= u1.to(DEVICE)
+            u2= u2.to(DEVICE)
+            u3 = u3.to(DEVICE)
+            l1= l1.to(DEVICE)
+            l2= l2.to(DEVICE)
+            l3 = l3.to(DEVICE)
+            optimizer.zero_grad()
+
+            output = model(u1,l1, u2,l2, u3,l3)
+
+            loss = criterion(output, u3)
+            loss.backward()
+            optimizer.step()
