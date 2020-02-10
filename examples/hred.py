@@ -150,7 +150,12 @@ if __name__ == '__main__':
     sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
     eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
     print(sos_index)
+
+    # trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
+    #                           pad_index, sos_index, device=DEVICE)
     #
+    # final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
+    # print("END")
 
 
     model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
@@ -163,22 +168,32 @@ if __name__ == '__main__':
     criterion = SequenceCrossEntropyLoss(pad_index)
 
     model.to(DEVICE)
+    clip = 1
     for epoch in range(MAX_EPOCHS):
-
+        avg_epoch_loss = 0
         model.train()
-
+        last = 0
         for batch_idx, batch in enumerate(train_loader):
             u1, l1, u2, l2, u3, l3 = batch
-            u1= u1.to(DEVICE)
-            u2= u2.to(DEVICE)
+            u1 = u1.to(DEVICE)
+            u2 = u2.to(DEVICE)
             u3 = u3.to(DEVICE)
-            l1= l1.to(DEVICE)
-            l2= l2.to(DEVICE)
+            l1 = l1.to(DEVICE)
+            l2 = l2.to(DEVICE)
             l3 = l3.to(DEVICE)
-            optimizer.zero_grad()
 
-            output = model(u1,l1, u2,l2, u3,l3)
+            if clip is not None:
+                _ = nn.utils.clip_grad_norm_(model.parameters(), clip)
 
+            output = model(u1, l1, u2, l2, u3, l3)
             loss = criterion(output, u3)
-            loss.backward()
+            avg_epoch_loss += loss.item()
+            loss.backward(retain_graph=False)
+
             optimizer.step()
+
+            last = batch_idx
+
+        avg_epoch_loss = avg_epoch_loss / (last + 1)
+        print("Epoch {} , avg_epoch_loss {}".format(epoch, avg_epoch_loss))
+
