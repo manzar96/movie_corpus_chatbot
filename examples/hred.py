@@ -25,13 +25,17 @@ BATCH_TRAIN_SIZE = 16
 BATCH_VAL_SIZE = 16
 
 
-def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index, device=DEVICE):
+def trainer_factory(options, emb_dim, vocab_size, embeddings,  pad_index,
+                    sos_index, device=DEVICE):
 
     model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, device)
 
-    params =[p for p in model.parameters() if p.requires_grad]
-    print("Model parameters: {}".format(len(params)))
+    numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
+    print('Trainable Parameters: {}'.format(numparams))
+
+    print("hred model:\n{}".format(model))
+
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
         lr=1e-3, weight_decay=1e-6)
@@ -174,26 +178,26 @@ if __name__ == '__main__':
 
     # --- make model and train it ---
 
-    # trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-    #                           pad_index, sos_index, device=DEVICE)
+    trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
+                              pad_index, sos_index, device=DEVICE)
+
+    final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
+    print("END")
+
+
+    # model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
+    #              sos_index, DEVICE)
     #
-    # final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
-    # print("END")
-
-
-    model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
-                 sos_index, DEVICE)
-
-    numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
-    print('Trainable Parameters: {}'.format(numparams))
-
-    print("hred model:\n{}".format(model))
-
-    optimizer = Adam([p for p in model.parameters() if p.requires_grad],
-    lr=1e-3, weight_decay=1e-6)
-
-    criterion = SequenceCrossEntropyLoss(pad_index)
-
+    # numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
+    # print('Trainable Parameters: {}'.format(numparams))
+    #
+    # print("hred model:\n{}".format(model))
+    #
+    # optimizer = Adam([p for p in model.parameters() if p.requires_grad],
+    # lr=1e-3, weight_decay=1e-6)
+    #
+    # criterion = SequenceCrossEntropyLoss(pad_index)
+    #
     # model.to(DEVICE)
     # clip = 1
     # for epoch in range(MAX_EPOCHS):
