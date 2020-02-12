@@ -14,7 +14,7 @@ from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.SubtleTriples import SubTriples2
 from slp.data.Semaine import SemaineDatasetTriplesOnly
 from slp.data.collators import HRED_Collator
-from slp.util.embeddings import EmbeddingsLoader
+from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.trainer.trainer import HREDTrainer
 from slp.modules.loss import SequenceCrossEntropyLoss
 from slp.modules.seq2seq.hred import HRED
@@ -51,14 +51,13 @@ def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index
 
 if __name__ == '__main__':
 
-
-
+    # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='HRED parameter options')
     parser.add_argument('-n', dest='name', help='enter suffix for model files')
     parser.add_argument('-model_path', dest='model_path', default='./models', help='enter the path in which you want to store the model state')
     parser.add_argument('-enchidden', dest='enc_hidden_size',
                         action='store_true',
-                        default=512, help='encoder hidden size')
+                        default=256, help='encoder hidden size')
     parser.add_argument('-embdrop', dest='embeddings_dropout',
                         action='store_true',
                         default=0, help='embeddings dropout')
@@ -76,10 +75,10 @@ if __name__ == '__main__':
 
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         action='store_true',
-                        default=512, help='context encoder input size')
+                        default=256, help='context encoder input size')
     parser.add_argument('-conthiddensize', dest='contenc_hidden_size',
                         action='store_true',
-                        default=512, help='context encoder hidden size')
+                        default=256, help='context encoder hidden size')
     parser.add_argument('-contnumlayers', dest='contenc_num_layers',
                         action='store_true',
                         default=1, help='context encoder number of layers')
@@ -95,7 +94,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-dechidden', dest='dec_hidden_size',
                         action='store_true',
-                        default=512, help='decoder hidden size')
+                        default=256, help='decoder hidden size')
     parser.add_argument('-decembtrain', dest='dec_finetune_embeddings',
                         action='store_true',
                         default=False, help='decoder finetune embeddings')
@@ -122,24 +121,44 @@ if __name__ == '__main__':
                         default=1., help='teacher forcing ratio')
 
     options = parser.parse_args()
-    print(options)
 
+    # ---  read data to create vocabulary dict ---
 
-    emb_file = './cache/glove.6B.50d.txt'
+    tokenizer = SpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
+
+    dataset = SemaineDatasetTriplesOnly(
+        "./data/semaine-database_download_2020-01-21_11_41_49", transforms=[
+            tokenizer])
+    vocab_dict = dataset.create_vocab_dict(tokenizer)
+
+    # --- create new embedding file ---
+
+    new_emb_file = './cache/new_embs.txt'
+    old_emb_file = './cache/glove.6B.50d.txt'
+    freq_words_file = './cache/freq_words.txt'
     emb_dim = 50
-    word2idx, idx2word, embeddings = EmbeddingsLoader(emb_file, emb_dim,
+
+    create_emb_file(new_emb_file, old_emb_file, freq_words_file, vocab_dict,
+                    most_freq=None)
+
+    # --- load new embeddings! ---
+
+    word2idx, idx2word, embeddings = EmbeddingsLoader(new_emb_file, emb_dim,
                                                       extra_tokens=
                                                       HRED_SPECIAL_TOKENS
                                                       ).load()
     vocab_size = len(word2idx)
-    tokenizer = SpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
+    print("Vocabulary size: {}".format(vocab_size))
+
+    # --- read dataset again and apply transforms ---
+
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    # dataset = SubTriples2('./data/corpus0sDialogues.txt', transforms=[
-    #     tokenizer, to_token_ids, to_tensor])
     dataset = SemaineDatasetTriplesOnly(
         "./data/semaine-database_download_2020-01-21_11_41_49", transforms=[
             tokenizer, to_token_ids, to_tensor])
+
+    # --- make train and val loaders ---
 
     collator_fn = HRED_Collator(device='cpu')
     train_loader, val_loader = train_test_split(dataset,
@@ -153,6 +172,8 @@ if __name__ == '__main__':
     eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
     print(sos_index)
 
+    # --- make model and train it ---
+
     # trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
     #                           pad_index, sos_index, device=DEVICE)
     #
@@ -163,42 +184,43 @@ if __name__ == '__main__':
     model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, DEVICE)
 
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name)
+    numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
+    print('Trainable Parameters: {}'.format(numparams))
+
+    print("hred model:\n{}".format(model))
 
     optimizer = Adam([p for p in model.parameters() if p.requires_grad],
     lr=1e-3, weight_decay=1e-6)
 
     criterion = SequenceCrossEntropyLoss(pad_index)
 
-    model.to(DEVICE)
-    clip = 1
-    for epoch in range(MAX_EPOCHS):
-        avg_epoch_loss = 0
-        model.train()
-        last = 0
-        for batch_idx, batch in enumerate(train_loader):
-            u1, l1, u2, l2, u3, l3 = batch
-            u1 = u1.to(DEVICE)
-            u2 = u2.to(DEVICE)
-            u3 = u3.to(DEVICE)
-            l1 = l1.to(DEVICE)
-            l2 = l2.to(DEVICE)
-            l3 = l3.to(DEVICE)
-
-            if clip is not None:
-                _ = nn.utils.clip_grad_norm_(model.parameters(), clip)
-
-            output = model(u1, l1, u2, l2, u3, l3)
-            loss = criterion(output, u3)
-            avg_epoch_loss += loss.item()
-            loss.backward(retain_graph=False)
-
-            optimizer.step()
-
-            last = batch_idx
-
-        avg_epoch_loss = avg_epoch_loss / (last + 1)
-        print("Epoch {} , avg_epoch_loss {}".format(epoch, avg_epoch_loss))
+    # model.to(DEVICE)
+    # clip = 1
+    # for epoch in range(MAX_EPOCHS):
+    #     avg_epoch_loss = 0
+    #     model.train()
+    #     last = 0
+    #     for batch_idx, batch in enumerate(train_loader):
+    #         u1, l1, u2, l2, u3, l3 = batch
+    #         u1 = u1.to(DEVICE)
+    #         u2 = u2.to(DEVICE)
+    #         u3 = u3.to(DEVICE)
+    #         l1 = l1.to(DEVICE)
+    #         l2 = l2.to(DEVICE)
+    #         l3 = l3.to(DEVICE)
+    #
+    #         if clip is not None:
+    #             _ = nn.utils.clip_grad_norm_(model.parameters(), clip)
+    #
+    #         output = model(u1, l1, u2, l2, u3, l3)
+    #         loss = criterion(output, u3)
+    #         avg_epoch_loss += loss.item()
+    #         loss.backward(retain_graph=False)
+    #
+    #         optimizer.step()
+    #
+    #         last = batch_idx
+    #
+    #     avg_epoch_loss = avg_epoch_loss / (last + 1)
+    #     print("Epoch {} , avg_epoch_loss {}".format(epoch, avg_epoch_loss))
 
