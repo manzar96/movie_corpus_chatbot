@@ -1,7 +1,6 @@
 from torch.utils.data import Dataset
 import glob
 import os
-import re
 
 
 class SemaineDataset(Dataset):
@@ -220,12 +219,6 @@ class SemaineDataset(Dataset):
         return s1, s2, s3
 
 
-from torch.utils.data import Dataset
-import glob
-import os
-import re
-
-
 class SemaineDatasetTriplesOnly(Dataset):
     def __init__(self, directory, transforms=None, train=True):
 
@@ -253,6 +246,24 @@ class SemaineDatasetTriplesOnly(Dataset):
     def map(self, t):
         self.transforms.append(t)
         return self
+
+    def create_vocab_dict(self, dataset, extra_tokens,
+                               tokenizer=SpacyTokenizer()):
+        """
+        receives dataset and a tokenizer in order to split sentences and create
+        a dict-vocabulary with words counts.
+        """
+        voc_counts = {}
+        for question, answer in dataset.pairs:
+            words, counts = np.unique(np.array(tokenizer(question)),
+                                      return_counts=True)
+            for word, count in zip(words, counts):
+                if word not in voc_counts.keys():
+                    voc_counts[word] = count
+                else:
+                    voc_counts[word] += count
+
+        return voc_counts
 
     def __len__(self):
         return len(self.triples)
