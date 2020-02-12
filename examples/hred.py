@@ -30,6 +30,8 @@ def trainer_factory(options,emb_dim,vocab_size,embeddings,  pad_index, sos_index
     model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, device)
 
+    params =[p for p in model.parameters() if p.requires_grad]
+    print("Model parameters: {}".format(len(params)))
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
         lr=1e-3, weight_decay=1e-6)
@@ -161,9 +163,12 @@ if __name__ == '__main__':
     model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, DEVICE)
 
-    optimizer = Adam(
-        [p for p in model.parameters() if p.requires_grad],
-        lr=1e-3, weight_decay=1e-6)
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(name)
+
+    optimizer = Adam([p for p in model.parameters() if p.requires_grad],
+    lr=1e-3, weight_decay=1e-6)
 
     criterion = SequenceCrossEntropyLoss(pad_index)
 
