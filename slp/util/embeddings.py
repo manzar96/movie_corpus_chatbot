@@ -15,18 +15,17 @@ def create_emb_file(new_emb_file, old_emb_file, freq_words_file, voc,
                     most_freq=None):
 
     sorted_voc = sorted(voc.items(), key=lambda kv: kv[1])
-    if not os.path.exists(freq_words_file):
-        with open(freq_words_file, "w") as file:
-            if most_freq is not None:
-                for item in sorted_voc[-most_freq:]:
-                    file.write(item[0]+'\n')
-            else:
-                for item in sorted_voc:
-                    file.write(item[0]+'\n')
-        file.close()
+    with open(freq_words_file, "w") as file:
+        if most_freq is not None:
+            for item in sorted_voc[-most_freq:]:
+                file.write(item[0]+'\n')
+        else:
+            for item in sorted_voc:
+                file.write(item[0]+'\n')
+    file.close()
 
-        os.system("awk 'FNR==NR{a[$1];next} ($1 in a)' " + freq_words_file +
-                  " " + old_emb_file + ">" + new_emb_file)
+    os.system("awk 'FNR==NR{a[$1];next} ($1 in a)' " + freq_words_file +
+              " " + old_emb_file + ">" + new_emb_file)
 
 
 class EmbeddingsLoader(object):
