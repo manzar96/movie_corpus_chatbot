@@ -346,7 +346,6 @@ class HRED(nn.Module):
                            rnn_type=options.dec_rnn_type,
                            device=device)
 
-        self.l2layer = L2PoolingLayer()
 
         self.batch_first = options.batch_first
         self.options = options
@@ -364,8 +363,6 @@ class HRED(nn.Module):
     def forward(self, u1, l1, u2, l2, u3, l3):
 
         _, hidden1 = self.enc(u1, l1)
-        import ipdb;ipdb.set_trace()
-        hidden1 = self.l2layer(hidden1)
         _, hidden2 = self.enc(u2, l2)
 
         """
