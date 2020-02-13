@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import numpy as np
 
 
 class L2PoolingLayer(nn.Module):
@@ -19,7 +18,6 @@ class L2PoolingLayer(nn.Module):
         input must be in form: [batch size , sequence length, features]
         """
         seq_len = x.shape[1]
-        import ipdb;ipdb.set_trace()
         x = torch.pow(x, 2.)
         x = 1/seq_len * torch.sum(x, dim=1)
         x = torch.sqrt(x)
