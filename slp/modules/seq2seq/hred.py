@@ -5,8 +5,7 @@ import torch.nn.functional as F
 
 from slp.modules.rnn import WordRNN2
 from slp.modules.embed import Embed
-from slp.modules.util import Maxout2
-
+from slp.modules.pooling import L2PoolingLayer, Maxout2
 
 class Encoder(nn.Module):
     def __init__(self, input_size, vocab_size, hidden_size, embedding=None,
@@ -33,9 +32,6 @@ class Encoder(nn.Module):
 
     def forward(self, inputs, lengths):
         last_out, hidden = self.word_rnn(inputs, lengths)
-
-        #2. an einai bidirectional prepei na enwsw ta hidden states forward
-        # kai backward kai episis na kanw L2 pooling over!!!
         #3.  Episis na tsekarw an kanthe fora to hidden einai 0 !!!
 
         return last_out, hidden
@@ -350,6 +346,8 @@ class HRED(nn.Module):
                            rnn_type=options.dec_rnn_type,
                            device=device)
 
+        self.l2layer = L2PoolingLayer()
+
         self.batch_first = options.batch_first
         self.options = options
         self.sos_index = sos_index
@@ -366,6 +364,8 @@ class HRED(nn.Module):
     def forward(self, u1, l1, u2, l2, u3, l3):
 
         _, hidden1 = self.enc(u1, l1)
+        import ipdb;ipdb.set_trace()
+        hidden1 = self.l2layer(hidden1)
         _, hidden2 = self.enc(u2, l2)
 
         """
