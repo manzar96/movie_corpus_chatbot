@@ -13,7 +13,7 @@ class SequenceCrossEntropyLoss(nn.Module):
         targets = targets.contiguous().view(-1)
         return self.criterion(y_pred, targets)
 
-class Perplexity(Loss):
+class Perplexity(nn.Module):
     def __init__(self, pad_idx=0):
         super(Perplexity, self).__init__()
         self.criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
