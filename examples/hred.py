@@ -16,7 +16,7 @@ from slp.data.Semaine import SemaineDatasetTriplesOnly
 from slp.data.collators import HRED_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.trainer.trainer import HREDTrainer
-from slp.modules.loss import SequenceCrossEntropyLoss
+from slp.modules.loss import SequenceCrossEntropyLoss,Perplexity
 from slp.modules.seq2seq.hred import HRED
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -41,10 +41,11 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings,  pad_index,
         lr=1e-3, weight_decay=1e-6)
 
     criterion = SequenceCrossEntropyLoss(pad_index)
+    perplexity = Perplexity(pad_index)
 
     metrics = {
-        'loss': Loss(criterion)
-    }
+        'loss': Loss(criterion),
+        'ppl': Loss(perplexity)}
 
     trainer = HREDTrainer(model, optimizer, # checkpoint_dir=None,
                                       metrics=metrics, non_blocking=True,
