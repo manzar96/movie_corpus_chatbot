@@ -16,10 +16,11 @@ from slp.data.Semaine import SemaineDatasetTriplesOnly
 from slp.data.collators import HRED_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.trainer.trainer import HREDTrainer
-from slp.modules.loss import SequenceCrossEntropyLoss,Perplexity
-from slp.modules.seq2seq.hred import HRED
+from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
+from slp.modules.seq2seq.hred_triples import HRED
 
-from examples.input_interaction import input_interaction
+from examples.input_interaction_triples import input_interaction
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
 MAX_EPOCHS = 2
