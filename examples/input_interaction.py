@@ -5,8 +5,7 @@ from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
-from slp.modules.seq2seq.hred import HRED
-
+from slp.modules.seq2seq.hred import HRED, GreedySearchHRED
 
 def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  device):
@@ -16,8 +15,8 @@ def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
     return model
 
 
-def create_searcher(model):
-    searcher = model
+def create_searcher(model, device):
+    searcher = GreedySearchHRED(model, device)
     return searcher
 
 
@@ -37,23 +36,22 @@ def load_embeddings(emb_file, emb_dim):
 #
 #     return model
 
-def evaluate(searcher, idx2word, sentence, history, device):
-    max_length = 11
-    # Format input sentence as a batch
-    indexes_batch = sentence
+def evaluate(searcher, idx2word, sentence1, sentence2, device):
+
+    indexes_batch = sentence1
     input_batch = torch.unsqueeze(indexes_batch, 0)
-
-    # Create lengths tensor
     lengths = torch.tensor([len(indexes) for indexes in input_batch])
+    input_batch1 = input_batch.to(device)
+    lengths1 = lengths.to(device)
 
-
-    # Use appropriate device
-    input_batch = input_batch.to(device)
-    lengths = lengths.to(device)
-    import ipdb;ipdb.set_trace()
+    indexes_batch = sentence2
+    input_batch = torch.unsqueeze(indexes_batch, 0)
+    lengths = torch.tensor([len(indexes) for indexes in input_batch])
+    input_batch2 = input_batch.to(device)
+    lengths2 = lengths.to(device)
 
     # Decode sentence with searcher
-    tokens, scores = searcher(input_batch, lengths, max_length)
+    tokens, scores = searcher(input_batch1, lengths1, input_batch2, lengths2)
     decoded_words = [idx2word[token.item()] for token in tokens]
 
     return decoded_words
@@ -69,22 +67,22 @@ def evaluate_input(searcher, word2idx, idx2word, device):
     while True:
         try:
             # Get input sentence
-            input_sentence = input('> ')
-            # Check if it is quit case
-            if input_sentence == 'q' or input_sentence == 'quit': break
+            input_sentence1 = input('> ')
+            if input_sentence1 == 'q' or input_sentence1 == 'quit': break
+            input_sentence2 = input('> ')
+            if input_sentence2 == 'q' or input_sentence2 == 'quit': break
+
             # Normalize sentence
             #input_sentence = normalizeString(input_sentence)
 
             # Evaluate sentence
             for t in transforms:
-                input_sentence = t(input_sentence)
+                input_sentence1 = t(input_sentence1)
+                input_sentence2 = t(input_sentence2)
 
-            history.append(input_sentence)
+            output_words = evaluate(searcher, idx2word, input_sentence1,
+                                    input_sentence2, device)
 
-            output_words = evaluate(searcher, idx2word, input_sentence,
-                                    history, device)
-
-            # Format and print response sentence
             print(output_words)
             output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
             print('Bot:', ' '.join(output_words))
@@ -110,7 +108,8 @@ def input_interaction(modeloptions, embfile, emb_dim, checkpointfile,
     print("Loaded Model...")
     # --- create searcher for encoding user's input and for providing an
     # answer ---
-    searcher = create_searcher(model)
+    searcher = create_searcher(model, device)
+    searcher = searcher.to(device)
     searcher.eval()
     print("Interacting...")
     evaluate_input(searcher, word2idx, idx2word, device)
