@@ -19,14 +19,16 @@ from slp.trainer.trainer import HREDTrainer
 from slp.modules.loss import SequenceCrossEntropyLoss,Perplexity
 from slp.modules.seq2seq.hred import HRED
 
+from examples.input_interaction import input_interaction
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-MAX_EPOCHS = 10
+print(DEVICE)
+MAX_EPOCHS = 2
 BATCH_TRAIN_SIZE = 16
 BATCH_VAL_SIZE = 16
 
 
-def trainer_factory(options, emb_dim, vocab_size, embeddings,  pad_index,
-                    sos_index, device=DEVICE):
+def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
+                    sos_index, checkpoint_dir=None, device=DEVICE):
 
     model = HRED(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, device)
@@ -47,10 +49,10 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings,  pad_index,
         'loss': Loss(criterion),
         'ppl': Loss(perplexity)}
 
-    trainer = HREDTrainer(model, optimizer, # checkpoint_dir=None,
-                                      metrics=metrics, non_blocking=True,
-                                      retain_graph=False, patience=5,
-                                      device=device, loss_fn=criterion)
+    trainer = HREDTrainer(model, optimizer,
+                          checkpoint_dir=checkpoint_dir, metrics=metrics,
+                          non_blocking=True, retain_graph=False, patience=5,
+                          device=device, loss_fn=criterion)
     return trainer
 
 
@@ -175,14 +177,22 @@ if __name__ == '__main__':
     pad_index = word2idx[HRED_SPECIAL_TOKENS.PAD.value]
     sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
     eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
-    print(sos_index)
+    print("sos index {}".format(sos_index))
+    print("eos index {}".format(eos_index))
+    print("pad index {}".format(pad_index))
 
     # --- make model and train it ---
-
+    checkpoint_dir = './checkpoints/HRED/0'
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-                              pad_index, sos_index, device=DEVICE)
+                              pad_index, sos_index, checkpoint_dir,
+                              device=DEVICE)
 
     final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
+
+    # --- interact with model ---
+    # input_interaction(options, new_emb_file, emb_dim, os.path.join(
+    #     checkpoint_dir, 'experiment_model.best.pth'), './out.txt', DEVICE)
+
     print("END")
 
 
