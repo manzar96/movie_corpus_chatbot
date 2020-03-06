@@ -7,7 +7,7 @@ __pycache__/
 *.so
 examples/MNIST/
 cache/*
-checkpoints/*.pth
+checkpoints/*
 .idea/
 # Distribution / packaging
 .Python
