@@ -182,7 +182,7 @@ if __name__ == '__main__':
     print("pad index {}".format(pad_index))
 
     # --- make model and train it ---
-    checkpoint_dir = './checkpoints/HRED/0'
+    checkpoint_dir = './checkpoints/hred/0'
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
