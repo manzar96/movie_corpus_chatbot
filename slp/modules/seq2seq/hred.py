@@ -411,3 +411,60 @@ class HRED(nn.Module):
 
         return dec_out
 
+
+class GreedySearchHREDDecoder(nn.Module):
+    def __init__(self, hred, device):
+        super(GreedySearchHREDDecoder, self).__init__()
+        self.utt_encoder = hred.enc
+        self.ses_encoder = hred.cont_enc
+        self.decoder = hred.dec
+
+        self.enc = hred.enc
+
+        self.cont_enc = hred.cont_enc
+
+        self.dec = hred.dec
+
+        self.batch_first = hred.batch_first
+        self.options = hred.options
+        self.sos_index = hred.sos_index
+
+
+        # we use a linear layer and tanh act function to initialize the
+        # hidden of the decoder.
+        # paper reference: A Hierarchical Recurrent Encoder-Decoder
+        # for Generative Context-Aware Query Suggestion, 2015
+        # dm,0 = tanh(D0sm−1 + b0)  (equation 7)
+        self.cont_enc_to_dec = hred.cont_enc_to_dec
+        self.tanh = hred.tanh
+
+        self.device = device
+
+    def forward(self, input_seq, input_length, max_length):
+
+        # Forward input through encoder model
+        encoder_outputs, encoder_hidden = self.enc(input_seq, input_length)
+
+        # Prepare encoder's final hidden layer to be first hidden input to the decoder
+        decoder_hidden = encoder_hidden[:self.decoder.num_layers]
+        # Initialize decoder input with SOS_token
+        decoder_input = torch.ones(1, 1, device=self.device, dtype=torch.long)\
+                        * SOS_token
+        # Initialize tensors to append decoded words to
+        all_tokens = torch.zeros([0], device=device, dtype=torch.long)
+        all_scores = torch.zeros([0], device=device)
+        # Iteratively decode one word token at a time
+        for _ in range(max_length):
+            # Forward pass through decoder
+            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
+            # Obtain most likely word token and its softmax score
+            current_output = torch.squeeze(decoder_output, dim=1)
+            decoder_output = F.softmax(current_output, dim=1)
+            decoder_scores, decoder_input = torch.max(decoder_output, dim=1)
+            # Record token and score
+            all_tokens = torch.cat((all_tokens, decoder_input), dim=0)
+            all_scores = torch.cat((all_scores, decoder_scores), dim=0)
+            # Prepare current token to be next decoder input (add a dimension)
+            decoder_input = torch.unsqueeze(decoder_input, 0)
+        # Return collections of word tokens and scores
+        return all_tokens, all_scores
