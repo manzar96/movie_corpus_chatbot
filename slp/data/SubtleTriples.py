@@ -1,15 +1,15 @@
 from torch.utils.data import Dataset
+import numpy as np
 
-
-class SubTriples1(Dataset):
+class SubTle(Dataset):
     def __init__(self, directory, transforms=None, train=True):
 
-        self.ids, self.triples = self.read_data(directory)
+        self.ids, self.tuples = self.read_data(directory)
         self.transforms = transforms
 
     def read_data(self, directory):
         lines = open(directory).read().split("\n")[:-1][:10000]
-        triplets = []
+        tuples = []
         ids = []
         for index, line in enumerate(lines):
             if not line == '':
@@ -21,28 +21,52 @@ class SubTriples1(Dataset):
                     u2 = line[4:]
 
             if index % 6 == 0 and line == '' and (not index == 0):
-                triplets.append((u1, u2, ''))
+                tuples.append((u1, u2))
 
-        return ids, triplets
+        return ids, tuples
+
+    def create_vocab_dict(self, tokenizer):
+        """
+        receives a tokenizer in order to split sentences and create
+        a dict-vocabulary with words counts.
+        """
+
+        voc_counts = {}
+        for s1, s2 in self.tuples:
+            words, counts = np.unique(np.array(tokenizer(s1)),
+                                      return_counts=True)
+            for word, count in zip(words, counts):
+                if word not in voc_counts.keys():
+                    voc_counts[word] = count
+                else:
+                    voc_counts[word] += count
+
+            words, counts = np.unique(np.array(tokenizer(s2)),
+                                      return_counts=True)
+            for word, count in zip(words, counts):
+                if word not in voc_counts.keys():
+                    voc_counts[word] = count
+                else:
+                    voc_counts[word] += count
+
+        return voc_counts
 
     def map(self, t):
         self.transforms.append(t)
         return self
 
     def __len__(self):
-        return len(self.triples)
+        return len(self.tuples)
 
     def __getitem__(self, idx):
         id = self.ids[idx]
-        #print(id)
-        s1, s2, s3 = self.triples[idx]
+
+        s1, s2 = self.tuples[idx]
         if self.transforms is not None:
             for t in self.transforms:
                 s1 = t(s1)
                 s2 = t(s2)
-                s3 = t(s3)
-
-        return s1, s2, s3
+        return s1, s2
 
 
 class SubTriples2(Dataset):
@@ -88,8 +112,9 @@ class SubTriples2(Dataset):
         return s1, s2, s3
 
 if __name__ == '__main__':
-    dataset = SubTriples2('./data/corpus0sDialogues.txt')
+    dataset = SubTle('./data/corpus0sDialogues.txt')
     for d in dataset:
         print(d)
+        break
 
 
