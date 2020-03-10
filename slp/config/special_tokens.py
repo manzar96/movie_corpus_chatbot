@@ -36,7 +36,8 @@ class HRED_SPECIAL_TOKENS(Enum):
 
     PAD = '[PAD]'
     UNK = '<unk>'
-    s = '</s>'
+    SOS = '<s>'
+    EOS = '</s>'
     d = '</d>'
     SOU = '[SOU]'
     EOU = '[EOU]'
