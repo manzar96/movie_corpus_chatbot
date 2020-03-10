@@ -365,6 +365,11 @@ class HREDSeq2Seq(nn.Module):
                                          self.dec.hidden_size, bias=True)
         self.tanh = nn.Tanh()
 
+        if self.options.pretraining:
+            for param in self.cont_enc.rnn.parameters():
+                if param.requires_grad:
+                    param.requires_grad = False
+
     def forward(self, u1, l1, u2, l2, u3, l3):
         if self.options.pretraining:
             _, hidden = self.enc(u2, l2)
