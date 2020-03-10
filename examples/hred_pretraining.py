@@ -127,7 +127,8 @@ if __name__ == '__main__':
     # ---  read data to create vocabulary dict ---
 
     tokenizer = DialogSpacyTokenizer(lower=True, prepend_sos=True,
-                                 append_eos=True, specials=HRED_SPECIAL_TOKENS)
+                                     append_eos=True,
+                                     specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
         "./data/corpus0sDialogues.txt", transforms=[
@@ -159,7 +160,6 @@ if __name__ == '__main__':
     to_tensor = ToTensor()
     dataset = SubTle("./data/corpus0sDialogues.txt", transforms=[
             tokenizer, to_token_ids, to_tensor])
-    import ipdb;ipdb.set_trace()
     # --- make train and val loaders ---
 
     collator_fn = HRED_Subtle_Collator(device='cpu')
