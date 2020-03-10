@@ -30,7 +30,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print('Trainable Parameters: {}'.format(numparams))
 
-    print("hred model:\n{}".format(model))
+    #print("hred model:\n{}".format(model))
 
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
