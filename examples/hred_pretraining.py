@@ -6,7 +6,7 @@ from ignite.metrics import Loss
 
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.data.utils import train_test_split
-from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
+from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.SubtleTriples import SubTle
 from slp.data.collators import HRED_Subtle_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
@@ -45,7 +45,8 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
     trainer = HREDTrainer(model, optimizer,
                           checkpoint_dir=checkpoint_dir, metrics=metrics,
-                          non_blocking=True, retain_graph=False, patience=5,
+                          non_blocking=True, retain_graph=False,
+                          patience=5,
                           device=device, loss_fn=criterion)
     return trainer
 
@@ -125,7 +126,8 @@ if __name__ == '__main__':
 
     # ---  read data to create vocabulary dict ---
 
-    tokenizer = SpacyTokenizer(lower=True, specials=HRED_SPECIAL_TOKENS)
+    tokenizer = DialogSpacyTokenizer(lower=True, prepend_sos=True,
+                                 append_eos=True, specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
         "./data/corpus0sDialogues.txt", transforms=[
@@ -157,7 +159,7 @@ if __name__ == '__main__':
     to_tensor = ToTensor()
     dataset = SubTle("./data/corpus0sDialogues.txt", transforms=[
             tokenizer, to_token_ids, to_tensor])
-
+    import ipdb;ipdb.set_trace()
     # --- make train and val loaders ---
 
     collator_fn = HRED_Subtle_Collator(device='cpu')
@@ -168,11 +170,13 @@ if __name__ == '__main__':
                                                 test_size=0.2)
 
     pad_index = word2idx[HRED_SPECIAL_TOKENS.PAD.value]
-    sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
-    eos_index = word2idx[HRED_SPECIAL_TOKENS.EOU.value]
+    sos_index = word2idx[HRED_SPECIAL_TOKENS.SOS.value]
+    eos_index = word2idx[HRED_SPECIAL_TOKENS.EOS.value]
+    unk_index = word2idx[HRED_SPECIAL_TOKENS.UNK.value]
     print("sos index {}".format(sos_index))
     print("eos index {}".format(eos_index))
     print("pad index {}".format(pad_index))
+    print("unk index {}".format(unk_index))
 
 
     # --- make model and train it ---
