@@ -55,6 +55,7 @@ class HRED_Collator(object):
 
         return inputs1, lengths1, inputs2, lengths2, inputs3, lengths3
 
+
 class HRED_Subtle_Collator(object):
     def __init__(self, pad_indx=0, device='cpu'):
         self.pad_indx = pad_indx
@@ -65,14 +66,6 @@ class HRED_Subtle_Collator(object):
         lengths1 = torch.tensor([len(s) for s in inputs1], device=self.device)
         lengths2 = torch.tensor([len(s) for s in inputs2], device=self.device)
 
-        """
-        check if inputs1 is empty vector(padding index=0)!
-        """
-        import ipdb;ipdb.set_trace()
-        if sum(lengths1) == 0:
-            inputs1 = [torch.tensor([0]) for _ in inputs1]
-            lengths1 = torch.tensor([len(s) for s in inputs1],
-                                    device=self.device)
         # Pad and convert to tensor
         inputs1 = (pad_sequence(inputs1,
                                batch_first=True,
@@ -83,7 +76,11 @@ class HRED_Subtle_Collator(object):
                                padding_value=self.pad_indx)
                   .to(self.device))
 
-        return inputs1, lengths1, inputs2, lengths2
+        empty_input = torch.zeros(inputs1.shape[0], inputs1.shape[1],
+                                  device=self.device)
+        len_empty = torch.tensor([len(s) for s in empty_input],
+                                 device=self.device)
+        return empty_input, len_empty, inputs1, lengths1, inputs2, lengths2
 
 
 class TransformerCollator(object):

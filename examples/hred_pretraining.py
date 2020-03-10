@@ -1,12 +1,8 @@
-import numpy as np
 import torch
 import argparse
-import os
-import torch.nn as nn
-
+from torch.optim import Adam
 from ignite.metrics import Loss
 
-from torch.optim import Adam
 
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.data.utils import train_test_split
@@ -15,6 +11,9 @@ from slp.data.SubtleTriples import SubTle
 from slp.data.collators import HRED_Subtle_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 
+from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
+from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
+from slp.trainer.trainer import HREDTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
@@ -22,6 +21,33 @@ MAX_EPOCHS = 2
 BATCH_TRAIN_SIZE = 16
 BATCH_VAL_SIZE = 16
 
+def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
+                    sos_index, checkpoint_dir=None, device=DEVICE):
+
+    model = HREDSeq2Seq(options, emb_dim, vocab_size, embeddings, embeddings,
+                 sos_index, device)
+
+    numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
+    print('Trainable Parameters: {}'.format(numparams))
+
+    print("hred model:\n{}".format(model))
+
+    optimizer = Adam(
+        [p for p in model.parameters() if p.requires_grad],
+        lr=1e-3, weight_decay=1e-6)
+
+    criterion = SequenceCrossEntropyLoss(pad_index)
+    perplexity = Perplexity(pad_index)
+
+    metrics = {
+        'loss': Loss(criterion),
+        'ppl': Loss(perplexity)}
+
+    trainer = HREDTrainer(model, optimizer,
+                          checkpoint_dir=checkpoint_dir, metrics=metrics,
+                          non_blocking=True, retain_graph=False, patience=5,
+                          device=device, loss_fn=criterion)
+    return trainer
 
 if __name__ == '__main__':
 
@@ -151,3 +177,11 @@ if __name__ == '__main__':
     print("eos index {}".format(eos_index))
     print("pad index {}".format(pad_index))
 
+
+    # --- make model and train it ---
+    checkpoint_dir = './checkpoints/hred/pretrained'
+    trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
+                              pad_index, sos_index, checkpoint_dir,
+                              device=DEVICE)
+
+    final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)

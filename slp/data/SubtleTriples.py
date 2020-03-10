@@ -48,7 +48,6 @@ class SubTle(Dataset):
                     voc_counts[word] = count
                 else:
                     voc_counts[word] += count
-
         return voc_counts
 
     def map(self, t):
@@ -115,6 +114,5 @@ if __name__ == '__main__':
     dataset = SubTle('./data/corpus0sDialogues.txt')
     for d in dataset:
         print(d)
-        break
 
 
