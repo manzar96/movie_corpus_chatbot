@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import numpy as np
 
+
 class SubTle(Dataset):
     def __init__(self, directory, transforms=None, train=True):
 
@@ -8,7 +9,7 @@ class SubTle(Dataset):
         self.transforms = transforms
 
     def read_data(self, directory):
-        lines = open(directory).read().split("\n")[:-1][:10000]
+        lines = open(directory).read().split("\n")[:-1][:1000000]
         tuples = []
         ids = []
         for index, line in enumerate(lines):
@@ -75,7 +76,7 @@ class SubTriples2(Dataset):
         self.transforms = transforms
 
     def read_data(self, directory):
-        lines = open(directory).read().split("\n")[:-1][:10000]
+        lines = open(directory).read().split("\n")[:-1]
         triplets = []
         ids = []
         for index, line in enumerate(lines):
@@ -111,8 +112,7 @@ class SubTriples2(Dataset):
         return s1, s2, s3
 
 if __name__ == '__main__':
-    dataset = SubTle('./data/corpus0sDialogues.txt')
-    for d in dataset:
-        print(d)
+    dataset = SubTle('/home/manzar/Downloads/DATASETS/SubtleCorpusPTEN/eng/corpus0sDialogues.txt')
+    import ipdb;ipdb.set_trace()
 
 
