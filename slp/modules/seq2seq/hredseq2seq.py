@@ -388,7 +388,9 @@ class HREDSeq2Seq(nn.Module):
                                           u3.shape[0],
                                           self.options.dec_hidden_size)
 
-            decoder_input = torch.zeros(u3.shape[0], 1).long()
+            #decoder_input = torch.zeros(u3.shape[0], 1).long()
+            decoder_input = torch.tensor([self.sos_index for _ in range(
+                u3.shape[0])]).long().unsqueeze(dim=1)
             decoder_input = decoder_input.to(self.device)
 
             dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
@@ -436,7 +438,9 @@ class HREDSeq2Seq(nn.Module):
             # decoder_input = decoder_input.unsqueeze(dim=1)
             # decoder_input = decoder_input.to(self.device)
 
-            decoder_input = torch.zeros(u3.shape[0], 1).long()
+            #decoder_input = torch.zeros(u3.shape[0], 1).long()
+            decoder_input = torch.tensor([self.sos_index for _ in range(
+                u3.shape[0])]).long().unsqueeze(dim=1)
             decoder_input = decoder_input.to(self.device)
 
             dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
