@@ -143,7 +143,7 @@ if __name__ == '__main__':
     emb_dim = 50
 
     create_emb_file(new_emb_file, old_emb_file, freq_words_file, vocab_dict,
-                    most_freq=None)
+                    most_freq=10000)
 
     # --- load new embeddings! ---
 
