@@ -186,7 +186,37 @@ if __name__ == '__main__':
         assert "Give model name for checkpoint!"
 
     checkpoint_dir = './checkpoints/hred/pretrained/'+ options.name
-    
+
+    with open(checkpoint_dir+"info.txt", "w") as info:
+        info.write("DATA USED INFO\n")
+        info.write("Data samples: {} \n".format(len(dataset)))
+        info.write("Vocabulary size: {} \n".format(vocab_size))
+
+        info.write("MODEL's INFO\n")
+        info.write("Utterance Encoder: {} layers, {} bidirectional, "
+                   "{} dropout , "
+                   "{} hidden \n".format(options.enc_num_layers,
+                                     options.enc_bidirectional,
+                                     options.enc_dropout,
+                                     options.enc_hidden_size))
+
+        info.write("Context Encoder: {} layers, {} bidirectional, {} dropout , "
+                   "{} hidden , {} input \n".format(options.contenc_num_layers,
+                                     options.contenc_bidirectional,
+                                     options.contenc_dropout,
+                                     options.contenc_hidden_size,
+                                     options.contenc_input_size))
+
+        info.write("Decoder: {} layers, {} bidirectional, {} dropout , "
+                   "{} hidden \n".format(options.dec_num_layers,
+                                     options.dec_bidirectional,
+                                     options.dec_dropout,
+                                     options.dec_hidden_size))
+
+        info.write("More info: \n")
+
+        info.close()
+
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
