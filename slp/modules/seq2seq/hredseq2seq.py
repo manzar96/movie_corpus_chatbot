@@ -383,7 +383,6 @@ class HREDSeq2Seq(nn.Module):
             else:
                 hidden = hidden[-1]
 
-            # edw den to pernaw apo to context encoder
             dec_init_hidden = hidden.view(self.options.dec_num_layers,
                                           u3.shape[0],
                                           self.options.dec_hidden_size)
@@ -447,6 +446,154 @@ class HREDSeq2Seq(nn.Module):
 
         return dec_out
 
+
+class HREDSeq2Seq_Context(nn.Module):
+    def __init__(self, options, emb_size, vocab_size, enc_embeddings,
+                 dec_embeddings, sos_index, device):
+        super(HREDSeq2Seq_Context, self).__init__()
+        self.enc = Encoder(input_size=emb_size,
+                           vocab_size=vocab_size,
+                           embedding=enc_embeddings,
+                           hidden_size=options.enc_hidden_size,
+                           embeddings_dropout=options.embeddings_dropout,
+                           finetune_embeddings=options.enc_finetune_embeddings,
+                           num_layers=options.enc_num_layers,
+                           batch_first=options.batch_first,
+                           bidirectional=options.enc_bidirectional,
+                           dropout=options.enc_dropout,
+                           device=device)
+
+        self.cont_enc = ContextEncoder(input_size=options.contenc_input_size,
+                                       hidden_size=options.contenc_hidden_size,
+                                       num_layers=options.contenc_num_layers,
+                                       batch_first=options.batch_first,
+                                       bidirectional=
+                                       options.contenc_bidirectional,
+                                       dropout=options.contenc_dropout,
+                                       rnn_type=options.contenc_rnn_type,
+                                       device=device)
+
+        self.dec = HREDDecoder(options, vocab_size=vocab_size,
+                               emb_size=emb_size,
+                               hidden_size=options.dec_hidden_size,
+                               embeddings=dec_embeddings,
+                               embeddings_dropout=options.embeddings_dropout,
+                               finetune_embeddings=options.dec_finetune_embeddings,
+                               num_layers=options.dec_num_layers,
+                               tc_ratio=options.teacherforcing_ratio,
+                               batch_first=options.batch_first,
+                               bidirectional=options.dec_bidirectional,
+                               dropout=options.dec_dropout,
+                               merge_bi=options.dec_merge_bi,
+                               rnn_type=options.dec_rnn_type,
+                               device=device)
+
+        self.batch_first = options.batch_first
+        self.options = options
+        self.sos_index = sos_index
+        self.device = device
+        # we use a linear layer and tanh act function to initialize the
+        # hidden of the decoder.
+        # paper reference: A Hierarchical Recurrent Encoder-Decoder
+        # for Generative Context-Aware Query Suggestion, 2015
+        # dm,0 = tanh(D0sm−1 + b0)  (equation 7)
+        self.cont_enc_to_dec = nn.Linear(self.cont_enc.hidden_size,
+                                         self.dec.hidden_size, bias=True)
+        self.tanh = nn.Tanh()
+
+        # if self.options.pretraining:
+        #     for param in self.cont_enc.rnn.parameters():
+        #         if param.requires_grad:
+        #             param.requires_grad = False
+
+    def forward(self, u1, l1, u2, l2, u3, l3):
+        if self.options.pretraining:
+            _, hidden = self.enc(u2, l2)
+
+            """
+            we take the last layer of the hidden state!
+            (Supposing it is a gru)
+            """
+            if self.options.enc_bidirectional:
+                hidden = hidden[-2:]
+            else:
+                hidden = hidden[-1]
+
+            hidden = hidden.unsqueeze(dim=1)
+            _, contenc_hidden = self.cont_enc(hidden)
+
+            if self.options.contenc_bidirectional:
+                contenc_hidden = contenc_hidden[-2:]
+            else:
+                contenc_hidden = contenc_hidden[-1]
+
+            dec_init_hidden = self.tanh(self.cont_enc_to_dec(contenc_hidden))
+            dec_init_hidden = dec_init_hidden.view(self.options.dec_num_layers,
+                                                   u3.shape[0],
+                                                   self.options.dec_hidden_size)
+
+            # dec_init_hidden = hidden.view(self.options.dec_num_layers,
+            #                               u3.shape[0],
+            #                               self.options.dec_hidden_size)
+
+            # decoder_input = torch.zeros(u3.shape[0], 1).long()
+            decoder_input = torch.tensor([self.sos_index for _ in range(
+                u3.shape[0])]).long().unsqueeze(dim=1)
+            decoder_input = decoder_input.to(self.device)
+
+            dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
+
+        else:
+            _, hidden1 = self.enc(u1, l1)
+            _, hidden2 = self.enc(u2, l2)
+
+            """
+            we take the last layer of the hidden state!
+            (Supposing it is a gru)
+            """
+            if self.options.enc_bidirectional:
+                hidden1 = hidden1[-2:]
+                hidden2 = hidden2[-2:]
+            else:
+                hidden1 = hidden1[-1]
+                hidden2 = hidden2[-1]
+
+            hidden1 = hidden1.unsqueeze(dim=1)
+            hidden2 = hidden2.unsqueeze(dim=1)
+            context_input = torch.cat((hidden1, hidden2), dim=1)
+
+            _, contenc_hidden = self.cont_enc(context_input)
+
+            """
+            we take the last layer of the hidden state!
+            (Supposing it is a gru)
+            """
+            if self.options.contenc_bidirectional:
+                contenc_hidden = contenc_hidden[-2:]
+            else:
+                contenc_hidden = contenc_hidden[-1]
+
+            dec_init_hidden = self.tanh(self.cont_enc_to_dec(contenc_hidden))
+            # edw mia view to dec_init_hidden
+            dec_init_hidden = dec_init_hidden.view(self.options.dec_num_layers,
+                                                   u3.shape[0],
+                                                   self.options.dec_hidden_size)
+            # edw isws thelei contiguous!!!
+
+            # edw ftiaxnw to input (nomizw einai midenika alla sto paper vazei 1)
+            # decoder_input = [self.sos_index for _ in range(u3.shape[0])]
+            # decoder_input = torch.tensor(decoder_input).long()
+            # decoder_input = decoder_input.unsqueeze(dim=1)
+            # decoder_input = decoder_input.to(self.device)
+
+            # decoder_input = torch.zeros(u3.shape[0], 1).long()
+            decoder_input = torch.tensor([self.sos_index for _ in range(
+                u3.shape[0])]).long().unsqueeze(dim=1)
+            decoder_input = decoder_input.to(self.device)
+
+            dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
+
+        return dec_out
 
 class GreedySearchHRED(nn.Module):
     def __init__(self, hred, device):

@@ -12,7 +12,7 @@ from slp.data.collators import HRED_Subtle_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
-from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
+from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq,HREDSeq2Seq_Context
 from slp.trainer.trainer import HREDTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -24,7 +24,7 @@ BATCH_VAL_SIZE = 16
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                     sos_index, checkpoint_dir=None, device=DEVICE):
 
-    model = HREDSeq2Seq(options, emb_dim, vocab_size, embeddings, embeddings,
+    model = HREDSeq2Seq_Context(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, device)
 
     numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
