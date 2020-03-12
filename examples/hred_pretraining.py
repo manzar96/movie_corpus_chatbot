@@ -1,3 +1,4 @@
+import os
 import torch
 import argparse
 from torch.optim import Adam
@@ -131,7 +132,7 @@ if __name__ == '__main__':
                                      specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
-        "./data/corpus0sDialogues.txt",samples_limit=100000, transforms=[
+        "./data/corpus0sDialogues.txt",samples_limit=250000, transforms=[
             tokenizer])
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
@@ -158,7 +159,7 @@ if __name__ == '__main__':
 
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTle("./data/corpus0sDialogues.txt",samples_limit =100000,transforms=[
+    dataset = SubTle("./data/corpus0sDialogues.txt",samples_limit =250000,transforms=[
             tokenizer, to_token_ids, to_tensor])
     
     print("Dataset size: {}".format(len(dataset)))
@@ -185,9 +186,9 @@ if __name__ == '__main__':
     if  options.name is None:
         assert "Give model name for checkpoint!"
 
-    checkpoint_dir = './checkpoints/hred/pretrained/'+ options.name
+    checkpoint_dir = os.path.join('./checkpoints/hred/pretrained',options.name)
 
-    with open(checkpoint_dir+"info.txt", "w") as info:
+    with open( checkpoint_dir+"info.txt", "w") as info:
         info.write("DATA USED INFO\n")
         info.write("Data samples: {} \n".format(len(dataset)))
         info.write("Vocabulary size: {} \n".format(vocab_size))
