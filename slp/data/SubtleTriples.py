@@ -3,13 +3,18 @@ import numpy as np
 
 
 class SubTle(Dataset):
-    def __init__(self, directory, transforms=None, train=True):
+    def __init__(self, directory, samples_limit=None, transforms=None, train=True):
 
+        self.limit = samples_limit
         self.ids, self.tuples = self.read_data(directory)
         self.transforms = transforms
+        
 
     def read_data(self, directory):
-        lines = open(directory).read().split("\n")[:-1][:1000000]
+        if self.limit is None:
+            lines = open(directory).read().split("\n")[:-1]
+        else:
+            lines = open(directory).read().split("\n")[:-1][:(self.limit+1)*6]
         tuples = []
         ids = []
         for index, line in enumerate(lines):
@@ -23,6 +28,10 @@ class SubTle(Dataset):
 
             if index % 6 == 0 and line == '' and (not index == 0):
                 tuples.append((u1, u2))
+                
+                if self.limit is not None:
+                    if len(tuples)>self.limit:
+                        break
 
         return ids, tuples
 

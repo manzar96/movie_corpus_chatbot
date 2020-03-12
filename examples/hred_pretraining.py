@@ -17,14 +17,14 @@ from slp.trainer.trainer import HREDTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
-MAX_EPOCHS = 2
+MAX_EPOCHS = 20
 BATCH_TRAIN_SIZE = 16
 BATCH_VAL_SIZE = 16
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                     sos_index, checkpoint_dir=None, device=DEVICE):
 
-    model = HREDSeq2Seq_Context(options, emb_dim, vocab_size, embeddings, embeddings,
+    model = HREDSeq2Seq(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, device)
 
     numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='HRED parameter options')
     parser.add_argument('-n', dest='name', help='enter suffix for model files')
-    parser.add_argument('-model_path', dest='model_path', default='./models', help='enter the path in which you want to store the model state')
+    
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
     parser.add_argument('-embdrop', dest='embeddings_dropout', type=float,
@@ -131,7 +131,7 @@ if __name__ == '__main__':
                                      specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
-        "./data/corpus0sDialogues.txt", transforms=[
+        "./data/corpus0sDialogues.txt",samples_limit=100000, transforms=[
             tokenizer])
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
@@ -158,8 +158,10 @@ if __name__ == '__main__':
 
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTle("./data/corpus0sDialogues.txt", transforms=[
+    dataset = SubTle("./data/corpus0sDialogues.txt",samples_limit =100000,transforms=[
             tokenizer, to_token_ids, to_tensor])
+    
+    print("Dataset size: {}".format(len(dataset)))
     # --- make train and val loaders ---
 
     collator_fn = HRED_Subtle_Collator(device='cpu')
@@ -180,7 +182,11 @@ if __name__ == '__main__':
 
 
     # --- make model and train it ---
-    checkpoint_dir = './checkpoints/hred/pretrained'
+    if  options.name is None:
+        assert "Give model name for checkpoint!"
+
+    checkpoint_dir = './checkpoints/hred/pretrained/'+ options.name
+    
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)

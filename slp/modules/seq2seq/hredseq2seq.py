@@ -519,7 +519,7 @@ class HREDSeq2Seq_Context(nn.Module):
             else:
                 hidden = hidden[-1]
 
-            hidden = hidden.unsqueeze(dim=1)
+            
             _, contenc_hidden = self.cont_enc(hidden)
 
             if self.options.contenc_bidirectional:
