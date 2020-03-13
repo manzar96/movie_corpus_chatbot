@@ -226,14 +226,14 @@ class HREDDecoder(nn.Module):
                               dropout=self.embeddings_dropout,
                               trainable=self.finetune_embeddings)
 
-        self.dec_to_emb2 = nn.Linear(self.hidden_size, self.emb_size*2, False)
-        self.cont_to_emb2 = nn.Linear(options.contenc_hidden_size,
-                                      self.emb_size*2, False)
-        self.emb_to_emb2 = nn.Linear(self.emb_size, self.emb_size*2, True)
+        #self.dec_to_emb2 = nn.Linear(self.hidden_size, self.emb_size*2, False)
+        #self.cont_to_emb2 = nn.Linear(options.contenc_hidden_size,
+        #                              self.emb_size*2, False)
+        #self.emb_to_emb2 = nn.Linear(self.emb_size, self.emb_size*2, True)
 
-        self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
-        self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
-
+        #self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
+        #self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
+        self.output_layer = nn.Linear(self.hidden_size, self.vocab_size)
 
     """
     def forward_step(self, dec_input, dec_hidden, enc_output=None):
@@ -279,24 +279,26 @@ class HREDDecoder(nn.Module):
                 else:
                     assert False, "Attention is not implemented"
 
-                if not self.pretraining:
-                    # ω(dm,n−1, wm,n−1) = Ho dm,n−1 + Eo wm,n−1 + bo   (olo auto se
-                    # diastasi emb_size*2
-                    emb_inf_vec = self.emb_to_emb2(input_embed).squeeze(dim=1)
-                    dec_inf_vec = self.dec_to_emb2(dec_out).squeeze(dim=1)
-                    cont_inf_vec = self.cont_to_emb2(context_encoded).squeeze(
-                        dim=0)
+                # if not self.pretraining:
+                #     # ω(dm,n−1, wm,n−1) = Ho dm,n−1 + Eo wm,n−1 + bo   (olo auto se
+                #     # diastasi emb_size*2
+                #     emb_inf_vec = self.emb_to_emb2(input_embed).squeeze(dim=1)
+                #     dec_inf_vec = self.dec_to_emb2(dec_out).squeeze(dim=1)
+                #     cont_inf_vec = self.cont_to_emb2(context_encoded).squeeze(
+                #         dim=0)
+                #
+                #     total_out = dec_inf_vec + cont_inf_vec + emb_inf_vec
+                #
+                #     #after max_out total_out dims:  emb_size
+                #     total_out = self.max_out(total_out)
+                # else:
+                #
+                #     total_out = self.dec_to_emb2(dec_out).squeeze(dim=1)
+                #     total_out = self.max_out(total_out)
 
-                    total_out = dec_inf_vec + cont_inf_vec + emb_inf_vec
+                # out = self.embed_out(total_out)
 
-                    #after max_out total_out dims:  emb_size
-                    total_out = self.max_out(total_out)
-                else:
-
-                    total_out = self.dec_to_emb2(dec_out).squeeze(dim=1)
-                    total_out = self.max_out(total_out)
-
-                out = self.embed_out(total_out)
+                out = self.output_layer(dec_out.squeeze(dim=1))
                 decoder_outputs.append(out)
 
                 dec_input = targets[:, i].unsqueeze(dim=1)
