@@ -31,8 +31,6 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print('Trainable Parameters: {}'.format(numparams))
 
-    # print("hred model:\n{}".format(model))
-
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
         lr=1e-3, weight_decay=1e-6)
@@ -121,6 +119,9 @@ if __name__ == '__main__':
                                             'decoder)')
     parser.add_argument('-sl', dest='samplelimit', type=int,
                         default=100000, help='sample limit used for training')
+    parser.add_argument('-shared', action='store_true',
+                        default=False, help='shared weights between encoder '
+                                            'and decoder')
 
     options = parser.parse_args()
 
