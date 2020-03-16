@@ -132,7 +132,7 @@ if __name__ == '__main__':
                                      specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
-        "./data/corpus0sDialogues.txt",samples_limit=250000, transforms=[
+        "./data/corpus0sDialogues.txt", samples_limit=250000, transforms=[
             tokenizer])
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
@@ -159,8 +159,8 @@ if __name__ == '__main__':
 
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTle("./data/corpus0sDialogues.txt",samples_limit =250000,transforms=[
-            tokenizer, to_token_ids, to_tensor])
+    dataset = SubTle("./data/corpus0sDialogues.txt", samples_limit=250000,
+                     transforms=[tokenizer, to_token_ids, to_tensor])
     
     print("Dataset size: {}".format(len(dataset)))
     # --- make train and val loaders ---

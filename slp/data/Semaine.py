@@ -297,6 +297,5 @@ class SemaineDatasetTriplesOnly(Dataset):
 
 if __name__ == '__main__':
     dataset = SemaineDatasetTriplesOnly(
-        "./data/semaine-database_download_2020-01-21_11_41_49",)
-    print(dataset[190])
-    print(len(dataset))
+        "./data/semaine-database_download_2020-01-21_11_41_49")
+    import ipdb;ipdb.set_trace()
