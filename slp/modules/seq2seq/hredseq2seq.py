@@ -179,7 +179,7 @@ class HREDDecoder(nn.Module):
                  embeddings_dropout=.1, finetune_embeddings=False,
                  num_layers=1, tc_ratio=1., batch_first=True,
                  bidirectional=False, dropout=0, attention=None,
-                 merge_bi='cat',rnn_type="gru", device='cpu'):
+                 merge_bi='cat', rnn_type="gru", device='cpu',encoder=None):
         super(HREDDecoder, self).__init__()
 
         self.vocab_size = vocab_size
@@ -226,6 +226,7 @@ class HREDDecoder(nn.Module):
                               dropout=self.embeddings_dropout,
                               trainable=self.finetune_embeddings)
 
+
         #self.dec_to_emb2 = nn.Linear(self.hidden_size, self.emb_size*2, False)
         #self.cont_to_emb2 = nn.Linear(options.contenc_hidden_size,
         #                              self.emb_size*2, False)
@@ -234,18 +235,6 @@ class HREDDecoder(nn.Module):
         #self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
         #self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
         self.output_layer = nn.Linear(self.hidden_size, self.vocab_size)
-
-    """
-    def forward_step(self, dec_input, dec_hidden, enc_output=None):
-
-        # we hav eto change the word_rnn not to receive lengths argument if
-        # its not needed!!!!
-        if enc_output is None:
-
-            input_embed = self.embed_in(dec_input)
-            dec_out, hidden = self.rnn(input_embed, dec_hidden)
-        return dec_out, hidden,input_embed
-    """
 
 
     def forward(self, dec_input, targets, target_lens, dec_hidden=None,
@@ -353,12 +342,16 @@ class HREDSeq2Seq(nn.Module):
                            rnn_type=options.dec_rnn_type,
                            device=device)
 
+        if options.shared:
+            self.dec.embed_in = self.enc.word_rnn.embed
+            self.dec.rnn = self.enc.word_rnn.rnn.rnn
 
         self.batch_first = options.batch_first
         self.options = options
         self.sos_index = sos_index
         self.device = device
-        #we use a linear layer and tanh act function to initialize the
+
+        # we use a linear layer and tanh act function to initialize the
         # hidden of the decoder.
         # paper reference: A Hierarchical Recurrent Encoder-Decoder
         # for Generative Context-Aware Query Suggestion, 2015
@@ -371,6 +364,16 @@ class HREDSeq2Seq(nn.Module):
             for param in self.cont_enc.rnn.parameters():
                 if param.requires_grad:
                     param.requires_grad = False
+            for param in self.cont_enc_to_dec.parameters():
+                if param.requires_grad:
+                    param.requires_grad = False
+        else:
+            for param in self.cont_enc.rnn.parameters():
+                if param.requires_grad:
+                    param.requires_grad = True
+            for param in self.cont_enc_to_dec.parameters():
+                if param.requires_grad:
+                    param.requires_grad = True
 
     def forward(self, u1, l1, u2, l2, u3, l3):
         if self.options.pretraining:
