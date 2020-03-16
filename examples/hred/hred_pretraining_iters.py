@@ -13,7 +13,7 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
 from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, HREDSeq2Seq_Context
-from slp.trainer.utils import HREDIterationsTrainer
+from slp.trainer.trainer import HREDIterationsTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
@@ -43,7 +43,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
     trainer = HREDIterationsTrainer(model, optimizer, criterion, metrics,
                                     checkpoint_dir=checkpoint_dir,
-                                    save_every=100, print_every=10,
+                                    save_every=1000, print_every=200,
                                     device=device)
     return trainer
 
@@ -119,6 +119,8 @@ if __name__ == '__main__':
                         action='store_true',
                         default=False, help='Pretraining model (only encoder'
                                             'decoder)')
+    parser.add_argument('-sl', dest='samplelimit', type=int,
+                        default=100000, help='sample limit used for training')
 
     options = parser.parse_args()
 
@@ -129,7 +131,8 @@ if __name__ == '__main__':
                                      specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
-        "./data/corpus0sDialogues.txt", samples_limit=250000, transforms=[
+        "./data/corpus0sDialogues.txt", samples_limit=options.samplelimit,
+        transforms=[
             tokenizer])
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
@@ -156,7 +159,8 @@ if __name__ == '__main__':
 
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTle("./data/corpus0sDialogues.txt", samples_limit=250000,
+    dataset = SubTle("./data/corpus0sDialogues.txt",
+                     samples_limit=options.samplelimit,
                      transforms=[tokenizer, to_token_ids, to_tensor])
 
     print("Dataset size: {}".format(len(dataset)))
@@ -180,11 +184,14 @@ if __name__ == '__main__':
 
     # --- make model and train it ---
     if options.name is None:
-        assert "Give model name for checkpoint!"
+        assert False, "Give model name for checkpoint!"
 
     checkpoint_dir = os.path.join('./checkpoints/hred/pretrained', options.name)
+    info_dir = os.path.join(checkpoint_dir, "info.txt")
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
 
-    with open(checkpoint_dir + "info.txt", "w") as info:
+    with open(info_dir, "w") as info:
         info.write("DATA USED INFO\n")
         info.write("Data samples: {} \n".format(len(dataset)))
         info.write("Vocabulary size: {} \n".format(vocab_size))
@@ -218,4 +225,4 @@ if __name__ == '__main__':
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
 
-    trainer.fit(train_loader, val_loader, n_iters=1000)
+    trainer.fit(train_loader, val_loader, n_iters=8000)
