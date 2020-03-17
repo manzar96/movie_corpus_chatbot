@@ -103,6 +103,7 @@ def input_interaction(modeloptions, embfile, emb_dim, checkpointfile,
     #  --- load model using loaded embeddings ---
     model = create_model(modeloptions, embeddings, emb_dim, vocab_size,
                          sos_index, device)
+    import ipdb;ipdb.set_trace()
     model = from_checkpoint(checkpointfile, model, map_location='cpu')
     model = model.to(device)
     print("Loaded Model...")
@@ -128,39 +129,35 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, help='Output file')
     parser.add_argument('--device', type=str, help='Device cpu|cuda:X')
 
-    parser.add_argument('-n', dest='name', default='hred', help='enter '
-                                                                 'suffix for ' \
-                                                      'model files')
-    parser.add_argument('-model_path', dest='model_path', default='./models', help='enter the path in which you want to store the model state')
-    parser.add_argument('-enchidden', dest='enc_hidden_size',
-                        action='store_true',
+    parser = argparse.ArgumentParser(description='HRED parameter options')
+    parser.add_argument('-n', dest='name', help='enter suffix for model files')
+
+    parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
-    parser.add_argument('-embdrop', dest='embeddings_dropout',
-                        action='store_true',
+    parser.add_argument('-embdrop', dest='embeddings_dropout', type=float,
                         default=0, help='embeddings dropout')
     parser.add_argument('-encembtrain', dest='enc_finetune_embeddings',
-                        action='store_true',
-                        default=False, help='encoder finetune embeddings')
-    parser.add_argument('-encnumlayers', dest='enc_num_layers',
-                        action='store_true',
+                        action='store_true', default=False,
+                        help='encoder finetune embeddings')
+    parser.add_argument('-encnumlayers', dest='enc_num_layers', type=int,
                         default=1, help='encoder number of layers')
     parser.add_argument('-encbi', dest='enc_bidirectional',
                         action='store_true',
                         default=False, help='bidirectional enc')
-    parser.add_argument('-encdrop', dest='enc_dropout', action='store_true',
+    parser.add_argument('-encdrop', dest='enc_dropout', type=float,
                         default=0, help='encoder dropout')
 
     parser.add_argument('-continputsize', dest='contenc_input_size',
-                        action='store_true',
+                        type=int,
                         default=256, help='context encoder input size')
     parser.add_argument('-conthiddensize', dest='contenc_hidden_size',
-                        action='store_true',
+                        type=int,
                         default=256, help='context encoder hidden size')
     parser.add_argument('-contnumlayers', dest='contenc_num_layers',
-                        action='store_true',
+                        type=int,
                         default=1, help='context encoder number of layers')
     parser.add_argument('-contencdrop', dest='contenc_dropout',
-                        action='store_true',
+                        type=float,
                         default=0, help='context encoder dropout')
     parser.add_argument('-contencbi', dest='contenc_bidirectional',
                         action='store_true',
@@ -170,23 +167,23 @@ if __name__ == '__main__':
                         default='gru', help='bidirectional enc')
 
     parser.add_argument('-dechidden', dest='dec_hidden_size',
-                        action='store_true',
+                        type=int,
                         default=256, help='decoder hidden size')
     parser.add_argument('-decembtrain', dest='dec_finetune_embeddings',
                         action='store_true',
                         default=False, help='decoder finetune embeddings')
     parser.add_argument('-decnumlayers', dest='dec_num_layers',
-                        action='store_true',
+                        type=int,
                         default=1, help='decoder number of layers')
     parser.add_argument('-decbi', dest='dec_bidirectional',
                         action='store_true',
                         default=False, help='bidirectional decoder')
-    parser.add_argument('-decdrop', dest='dec_dropout', action='store_true',
+    parser.add_argument('-decdrop', dest='dec_dropout', type=float,
                         default=0, help='decoder dropout')
     parser.add_argument('-decmergebi', dest='dec_merge_bi',
                         action='store_true',
                         default='cat', help='decoder merge bidirectional '
-                                       'method')
+                                            'method')
     parser.add_argument('-dectype', dest='dec_rnn_type',
                         action='store_true',
                         default='gru', help='decoder rnn type')
@@ -196,6 +193,14 @@ if __name__ == '__main__':
     parser.add_argument('-tf', dest='teacherforcing_ratio',
                         action='store_true',
                         default=1., help='teacher forcing ratio')
+    parser.add_argument('-pt', dest='pretraining',
+                        action='store_true',
+                        default=False, help='Pretraining model (only encoder'
+                                            'decoder)')
+
+    parser.add_argument('-shared', action='store_true',
+                        default=False, help='shared weights between encoder '
+                                            'and decoder')
 
     options = parser.parse_args()
 
