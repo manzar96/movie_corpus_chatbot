@@ -48,7 +48,6 @@ def evaluate(searcher, idx2word, sentence1, device):
                               device=device)
     len_empty = torch.tensor([len(s) for s in empty_input],
                              device=device)
-    import ipdb;ipdb.set_trace()
     # Decode sentence with searcher
     tokens, scores = searcher(empty_input, len_empty, input_batch1, lengths1)
     decoded_words = [idx2word[token.item()] for token in tokens]
@@ -98,7 +97,6 @@ def input_interaction(modeloptions, embfile, emb_dim, checkpointfile,
     #  --- load model using loaded embeddings ---
     model = create_model(modeloptions, embeddings, emb_dim, vocab_size,
                          sos_index, device)
-    import ipdb;ipdb.set_trace()
     model = from_checkpoint(checkpointfile, model, map_location='cpu')
     model = model.to(device)
     print("Loaded Model...")
@@ -123,9 +121,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--output', type=str, help='Output file')
     parser.add_argument('--device', type=str, help='Device cpu|cuda:X')
-
-    parser = argparse.ArgumentParser(description='HRED parameter options')
-    parser.add_argument('-n', dest='name', help='enter suffix for model files')
 
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
