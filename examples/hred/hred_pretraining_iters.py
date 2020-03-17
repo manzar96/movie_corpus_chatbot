@@ -40,7 +40,8 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
     trainer = HREDIterationsTrainer(model, optimizer, criterion, metrics,
                                     checkpoint_dir=checkpoint_dir,
-                                    save_every=50, print_every=50,
+                                    save_every=options.save_every,
+                                    print_every=options.print_every,
                                     device=device)
     return trainer
 
@@ -121,6 +122,10 @@ if __name__ == '__main__':
     parser.add_argument('-iters', type=int,
                         default=1000, help='iterations for training in mini '
                                            'batches')
+    parser.add_argument('-save_every', type=int,
+                        default=100, help='save every X iters')
+    parser.add_argument('-print_every', type=int,
+                        default=100, help='print every X iters')
     parser.add_argument('-shared', action='store_true',
                         default=False, help='shared weights between encoder '
                                             'and decoder')
