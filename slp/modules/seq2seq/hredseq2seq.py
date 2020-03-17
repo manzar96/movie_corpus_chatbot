@@ -746,7 +746,7 @@ class GreedySearchHREDDecoder(nn.Module):
             # total_out = self.dec.max_out(total_out)
             # out = self.dec.embed_out(total_out)
 
-            out = self.output_layer(dec_out.squeeze(dim=1))
+            out = self.dec.output_layer(dec_out.squeeze(dim=1))
             out = F.softmax(out, dim=1)
 
             decoder_scores, dec_input = torch.max(out, dim=1)
