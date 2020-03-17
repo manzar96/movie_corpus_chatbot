@@ -448,11 +448,39 @@ class HREDIterationsTrainer:
 
         return loss.item(), metrics_res
 
+    def eval_step(self, batch):
+        self.model.eval()
+        with torch.no_grad():
+            outputs, targets = self.get_predictions_and_targets(batch)
+        loss = self.criterion(outputs, targets)
+
+        metrics_res = []
+        if self.metrics is not None:
+            for metric in self.metrics:
+                metrics_res.append(metric(outputs, targets).item())
+
+        return loss.item(), metrics_res
+
     def print_iter(self, print_loss, print_ppl, iteration, n_iterations):
         print_loss_avg = print_loss / self.print_every
         print_ppl_avg = print_ppl / self.print_every
+        print("Training results")
         print(
-            "Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(
+            "Iteration: {}; Percent complete: {:.1f}%; Average train loss: {"
+            ":.4f}".format(
+                iteration, iteration / n_iterations * 100, print_loss_avg))
+        print(
+            "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
+                iteration, iteration / n_iterations * 100, print_ppl_avg))
+        print("++++++++++++++++++")
+
+    def print_iter_val(self, print_loss, print_ppl, iteration, n_iterations):
+        print_loss_avg = print_loss / self.print_every
+        print_ppl_avg = print_ppl / self.print_every
+        print("Validation results")
+        print(
+            "Iteration: {}; Percent complete: {:.1f}%; Average  loss: {"
+            ":.4f}".format(
                 iteration, iteration / n_iterations * 100, print_loss_avg))
         print(
             "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
@@ -469,33 +497,51 @@ class HREDIterationsTrainer:
             'model': self.model.state_dict(),
             'en_opt': self.optimizer.state_dict(),
             'loss': loss,
-        }, os.path.join(self.checkpoint_dir, '{}_{}.tar'.format(iteration,
+        }, os.path.join(self.checkpoint_dir, '{}_{}.pth'.format(iteration,
                                                                 'checkpoint')))
 
-    def train_Iterations(self, n_iterations, train_loader):
-        all_mini_batches = [batch for _, batch in enumerate(train_loader)]
-        selected_batches = [random.choice(all_mini_batches) for _ in range(
-            n_iterations)]
+    def train_Iterations(self, n_iterations, train_loader, val_loader):
+        all_mini_batches_train = [batch for _, batch in enumerate(train_loader)]
+        selected_batches_train = [random.choice(all_mini_batches_train) for _
+                                  in range(n_iterations)]
+
+        all_mini_batches_val = [batch for _, batch in enumerate(val_loader)]
+        selected_batches_val = [random.choice(all_mini_batches_val) for _ in
+                                range(n_iterations)]
 
         start_iter = 1
-        print_loss = 0
-        print_ppl = 0
+        train_print_loss = 0
+        train_print_ppl = 0
+        val_print_loss = 0
+        val_print_ppl = 0
 
         print("Training model....")
         for iteration in range(start_iter, n_iterations + 1):
 
-            mini_batch = selected_batches[iteration - 1]
+            # train step
+            mini_batch = selected_batches_train[iteration - 1]
             loss, metrics_res = self.train_step(mini_batch)
 
-            print_loss += loss
-            print_ppl += metrics_res[0]
+            train_print_loss += loss
+            train_print_ppl += metrics_res[0]
+
+            # eval step
+            mini_batch = selected_batches_val[iteration-1]
+            loss_val, metrics_res = self.eval_step(mini_batch)
+            val_print_loss += loss_val
+            val_print_ppl += metrics_res[0]
 
             # Print progress
             if iteration % self.print_every == 0:
-                self.print_iter(print_loss, print_ppl, iteration,
+                self.print_iter(train_print_loss, train_print_ppl, iteration,
                                 n_iterations)
-                print_loss = 0
-                print_ppl = 0
+                train_print_loss = 0
+                train_print_ppl = 0
+
+                self.print_iter_val(val_print_loss, val_print_ppl,
+                                    iteration, n_iterations)
+                val_print_loss = 0
+                val_print_ppl = 0
 
             # Save checkpoint
             if self.checkpoint_dir is not None:
@@ -503,4 +549,4 @@ class HREDIterationsTrainer:
                     self.save_iter(iteration, loss)
 
     def fit(self, train_loader, val_loader, n_iters):
-        self.train_Iterations(n_iters, train_loader)
+        self.train_Iterations(n_iters, train_loader, val_loader)
