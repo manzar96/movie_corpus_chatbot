@@ -385,6 +385,7 @@ class HREDTrainer(SequentialTrainer):
         loss_value: float = loss.item()
         return loss_value
 
+
 class HREDIterationsTrainer:
     def __init__(self, model,
                  optimizer, criterion, metrics=None, scheduler=None,
@@ -487,18 +488,12 @@ class HREDIterationsTrainer:
                 iteration, iteration / n_iterations * 100, print_ppl_avg))
         print("==============================================================")
 
-
     def save_iter(self, iteration, loss):
 
         if not os.path.exists(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)
-        torch.save({
-            'iteration': iteration,
-            'model': self.model.state_dict(),
-            'en_opt': self.optimizer.state_dict(),
-            'loss': loss,
-        }, os.path.join(self.checkpoint_dir, '{}_{}.pth'.format(iteration,
-                                                                'checkpoint')))
+        torch.save(self.model.state_dict(), os.path.join(
+            self.checkpoint_dir, '{}_{}.pth'.format(iteration, 'checkpoint')))
 
     def train_Iterations(self, n_iterations, train_loader, val_loader):
         all_mini_batches_train = [batch for _, batch in enumerate(train_loader)]
