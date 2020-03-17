@@ -18,7 +18,6 @@ from slp.trainer.trainer import HREDTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
-MAX_EPOCHS = 20
 BATCH_TRAIN_SIZE = 16
 BATCH_VAL_SIZE = 16
 
@@ -122,6 +121,14 @@ if __name__ == '__main__':
                         action='store_true',
                         default=False, help='Pretraining model (only encoder'
                                             'decoder)')
+    parser.add_argument('-sl', dest='samplelimit', type=int,
+                        default=100000, help='sample limit used for training')
+    parser.add_argument('-epochs', type=int, default=20, help='number of '
+                                                              'epochs')
+    parser.add_argument('-shared', action='store_true',
+                        default=False, help='shared weights between encoder '
+                                            'and decoder')
+
 
     options = parser.parse_args()
 
@@ -132,7 +139,8 @@ if __name__ == '__main__':
                                      specials=HRED_SPECIAL_TOKENS)
 
     dataset = SubTle(
-        "./data/corpus0sDialogues.txt", samples_limit=250000, transforms=[
+        "./data/corpus0sDialogues.txt", samples_limit=options.samplelimit,
+        transforms=[
             tokenizer])
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
@@ -159,7 +167,8 @@ if __name__ == '__main__':
 
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTle("./data/corpus0sDialogues.txt", samples_limit=250000,
+    dataset = SubTle("./data/corpus0sDialogues.txt",
+                     samples_limit=options.samplelimit,
                      transforms=[tokenizer, to_token_ids, to_tensor])
     
     print("Dataset size: {}".format(len(dataset)))
@@ -183,12 +192,15 @@ if __name__ == '__main__':
 
 
     # --- make model and train it ---
-    if  options.name is None:
-        assert "Give model name for checkpoint!"
+    if options.name is None:
+        assert False, "Give model name for checkpoint!"
 
-    checkpoint_dir = os.path.join('./checkpoints/hred/pretrained',options.name)
+    checkpoint_dir = os.path.join('./checkpoints/hred/pretrained', options.name)
+    info_dir = os.path.join(checkpoint_dir, "info.txt")
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
 
-    with open( checkpoint_dir+"info.txt", "w") as info:
+    with open(info_dir, "w") as info:
         info.write("DATA USED INFO\n")
         info.write("Data samples: {} \n".format(len(dataset)))
         info.write("Vocabulary size: {} \n".format(vocab_size))
@@ -197,22 +209,22 @@ if __name__ == '__main__':
         info.write("Utterance Encoder: {} layers, {} bidirectional, "
                    "{} dropout , "
                    "{} hidden \n".format(options.enc_num_layers,
-                                     options.enc_bidirectional,
-                                     options.enc_dropout,
-                                     options.enc_hidden_size))
+                                         options.enc_bidirectional,
+                                         options.enc_dropout,
+                                         options.enc_hidden_size))
 
         info.write("Context Encoder: {} layers, {} bidirectional, {} dropout , "
                    "{} hidden , {} input \n".format(options.contenc_num_layers,
-                                     options.contenc_bidirectional,
-                                     options.contenc_dropout,
-                                     options.contenc_hidden_size,
-                                     options.contenc_input_size))
+                                                    options.contenc_bidirectional,
+                                                    options.contenc_dropout,
+                                                    options.contenc_hidden_size,
+                                                    options.contenc_input_size))
 
         info.write("Decoder: {} layers, {} bidirectional, {} dropout , "
                    "{} hidden \n".format(options.dec_num_layers,
-                                     options.dec_bidirectional,
-                                     options.dec_dropout,
-                                     options.dec_hidden_size))
+                                         options.dec_bidirectional,
+                                         options.dec_dropout,
+                                         options.dec_hidden_size))
 
         info.write("More info: \n")
 
@@ -222,4 +234,4 @@ if __name__ == '__main__':
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
 
-    final_score = trainer.fit(train_loader, val_loader, epochs=MAX_EPOCHS)
+    final_score = trainer.fit(train_loader, val_loader, epochs=options.epochs)

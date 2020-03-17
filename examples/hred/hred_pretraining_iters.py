@@ -17,7 +17,6 @@ from slp.trainer.trainer import HREDIterationsTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
-MAX_EPOCHS = 20
 BATCH_TRAIN_SIZE = 16
 BATCH_VAL_SIZE = 16
 
@@ -41,7 +40,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
     trainer = HREDIterationsTrainer(model, optimizer, criterion, metrics,
                                     checkpoint_dir=checkpoint_dir,
-                                    save_every=1000, print_every=200,
+                                    save_every=50, print_every=50,
                                     device=device)
     return trainer
 
@@ -118,7 +117,10 @@ if __name__ == '__main__':
                         default=False, help='Pretraining model (only encoder'
                                             'decoder)')
     parser.add_argument('-sl', dest='samplelimit', type=int,
-                        default=100000, help='sample limit used for training')
+                        default=100, help='sample limit used for training')
+    parser.add_argument('-iters', type=int,
+                        default=1000, help='iterations for training in mini '
+                                           'batches')
     parser.add_argument('-shared', action='store_true',
                         default=False, help='shared weights between encoder '
                                             'and decoder')
@@ -226,4 +228,4 @@ if __name__ == '__main__':
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
 
-    trainer.fit(train_loader, val_loader, n_iters=8000)
+    trainer.fit(train_loader, val_loader, n_iters=options.iters)
