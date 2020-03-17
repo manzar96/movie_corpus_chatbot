@@ -5,12 +5,12 @@ from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
-from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHRED
+from slp.modules.seq2seq.hred_triples import HRED, GreedySearchHRED
 
 def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  device):
 
-    model = HREDSeq2Seq(modeloptions, emb_dim, vocab_size, embeddings,
+    model = HRED(modeloptions, emb_dim, vocab_size, embeddings,
                  embeddings, sos_index, device)
     return model
 
