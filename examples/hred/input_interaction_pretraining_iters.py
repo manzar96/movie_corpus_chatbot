@@ -5,7 +5,7 @@ from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
-from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHRED
+from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHREDSeq2Seq
 
 def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  device):
@@ -16,7 +16,7 @@ def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
 
 
 def create_searcher(model, device):
-    searcher = GreedySearchHRED(model, device)
+    searcher = GreedySearchHREDSeq2Seq(model, device)
     return searcher
 
 
@@ -36,7 +36,7 @@ def load_embeddings(emb_file, emb_dim):
 #
 #     return model
 
-def evaluate(searcher, idx2word, sentence1, sentence2, device):
+def evaluate(searcher, idx2word, sentence1, device):
 
     indexes_batch = sentence1
     input_batch = torch.unsqueeze(indexes_batch, 0)
@@ -44,14 +44,13 @@ def evaluate(searcher, idx2word, sentence1, sentence2, device):
     input_batch1 = input_batch.to(device)
     lengths1 = lengths.to(device)
 
-    indexes_batch = sentence2
-    input_batch = torch.unsqueeze(indexes_batch, 0)
-    lengths = torch.tensor([len(indexes) for indexes in input_batch])
-    input_batch2 = input_batch.to(device)
-    lengths2 = lengths.to(device)
-
+    empty_input = torch.zeros(input_batch1.shape[0], input_batch1.shape[1],
+                              device=device)
+    len_empty = torch.tensor([len(s) for s in empty_input],
+                             device=device)
+    import ipdb;ipdb.set_trace()
     # Decode sentence with searcher
-    tokens, scores = searcher(input_batch1, lengths1, input_batch2, lengths2)
+    tokens, scores = searcher(empty_input, len_empty, input_batch1, lengths1)
     decoded_words = [idx2word[token.item()] for token in tokens]
 
     return decoded_words
@@ -62,15 +61,12 @@ def evaluate_input(searcher, word2idx, idx2word, device):
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
     transforms = [tokenizer, to_token_ids, to_tensor]
-    history = []
 
     while True:
         try:
             # Get input sentence
             input_sentence1 = input('> ')
             if input_sentence1 == 'q' or input_sentence1 == 'quit': break
-            input_sentence2 = input('> ')
-            if input_sentence2 == 'q' or input_sentence2 == 'quit': break
 
             # Normalize sentence
             #input_sentence = normalizeString(input_sentence)
@@ -78,10 +74,9 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             # Evaluate sentence
             for t in transforms:
                 input_sentence1 = t(input_sentence1)
-                input_sentence2 = t(input_sentence2)
 
             output_words = evaluate(searcher, idx2word, input_sentence1,
-                                    input_sentence2, device)
+                                    device)
 
             print(output_words)
             output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]

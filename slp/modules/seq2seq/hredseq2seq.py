@@ -603,9 +603,9 @@ class HREDSeq2Seq_Context(nn.Module):
 
         return dec_out
 
-class GreedySearchHRED(nn.Module):
+class GreedySearchHREDSeq2Seq(nn.Module):
     def __init__(self, hred, device):
-        super(GreedySearchHRED, self).__init__()
+        super(GreedySearchHREDSeq2Seq, self).__init__()
 
         self.enc = hred.enc
         self.cont_enc = hred.cont_enc
@@ -613,7 +613,7 @@ class GreedySearchHRED(nn.Module):
         self.batch_first = hred.batch_first
         self.options = hred.options
         self.sos_index = hred.sos_index
-
+        self.first_time = True
         # we use a linear layer and tanh act function to initialize the
         # hidden of the decoder.
         # paper reference: A Hierarchical Recurrent Encoder-Decoder
@@ -625,52 +625,73 @@ class GreedySearchHRED(nn.Module):
         self.device = device
 
     def forward(self, input_seq1, input_length1, input_seq2, input_length2):
+        if self.first_time:
+            _, hidden = self.enc(input_seq2, input_length2)
 
-        _, hidden1 = self.enc(input_seq1, input_length1)
-        _, hidden2 = self.enc(input_seq2, input_length2)
+            """
+            we take the last layer of the hidden state!
+            (Supposing it is a gru)
+            """
+            if self.options.enc_bidirectional:
+                hidden = hidden[-2:]
+            else:
+                hidden = hidden[-1]
 
-        """
-               we take the last layer of the hidden state!
-               (Supposing it is a gru)
-               """
-        if self.options.enc_bidirectional:
-            hidden1 = hidden1[-2:]
-            hidden2 = hidden2[-2:]
+            dec_init_hidden = hidden.view(self.options.dec_num_layers,
+                                          1,
+                                          self.options.dec_hidden_size)
+
+            decoder_input = torch.zeros(1, 1).long()
+            decoder_input = decoder_input.to(self.device)
+            dec_tokens, dec_scores = self.dec(decoder_input, dec_init_hidden)
+
         else:
-            hidden1 = hidden1[-1]
-            hidden2 = hidden2[-1]
 
-        hidden1 = hidden1.unsqueeze(dim=1)
-        hidden2 = hidden2.unsqueeze(dim=1)
-        context_input = torch.cat((hidden1, hidden2), dim=1)
+            _, hidden1 = self.enc(input_seq1, input_length1)
+            _, hidden2 = self.enc(input_seq2, input_length2)
 
-        _, contenc_hidden = self.cont_enc(context_input)
+            """
+                   we take the last layer of the hidden state!
+                   (Supposing it is a gru)
+            """
+            if self.options.enc_bidirectional:
+                hidden1 = hidden1[-2:]
+                hidden2 = hidden2[-2:]
+            else:
+                hidden1 = hidden1[-1]
+                hidden2 = hidden2[-1]
 
-        """
-        we take the last layer of the hidden state!
-        (Supposing it is a gru)
-        """
-        if self.options.contenc_bidirectional:
-            contenc_hidden = contenc_hidden[-2:]
-        else:
-            contenc_hidden = contenc_hidden[-1]
+            hidden1 = hidden1.unsqueeze(dim=1)
+            hidden2 = hidden2.unsqueeze(dim=1)
+            context_input = torch.cat((hidden1, hidden2), dim=1)
 
-        dec_init_hidden = self.tanh(self.cont_enc_to_dec(contenc_hidden))
+            _, contenc_hidden = self.cont_enc(context_input)
 
-        dec_init_hidden = dec_init_hidden.view(self.options.dec_num_layers,
-                                               1,
-                                               self.options.dec_hidden_size)
-        # edw isws thelei contiguous!!!
+            """
+            we take the last layer of the hidden state!
+            (Supposing it is a gru)
+            """
+            if self.options.contenc_bidirectional:
+                contenc_hidden = contenc_hidden[-2:]
+            else:
+                contenc_hidden = contenc_hidden[-1]
 
-        # edw ftiaxnw to input (nomizw einai midenika alla sto paper vazei 1)
-        # decoder_input = [self.sos_index for _ in range(u3.shape[0])]
-        # decoder_input = torch.tensor(decoder_input).long()
-        # decoder_input = decoder_input.unsqueeze(dim=1)
-        # decoder_input = decoder_input.to(self.device)
+            dec_init_hidden = self.tanh(self.cont_enc_to_dec(contenc_hidden))
 
-        decoder_input = torch.zeros(1, 1).long()
-        decoder_input = decoder_input.to(self.device)
-        dec_tokens, dec_scores = self.dec(decoder_input, dec_init_hidden)
+            dec_init_hidden = dec_init_hidden.view(self.options.dec_num_layers,
+                                                   1,
+                                                   self.options.dec_hidden_size)
+            # edw isws thelei contiguous!!!
+
+            # edw ftiaxnw to input (nomizw einai midenika alla sto paper vazei 1)
+            # decoder_input = [self.sos_index for _ in range(u3.shape[0])]
+            # decoder_input = torch.tensor(decoder_input).long()
+            # decoder_input = decoder_input.unsqueeze(dim=1)
+            # decoder_input = decoder_input.to(self.device)
+
+            decoder_input = torch.zeros(1, 1).long()
+            decoder_input = decoder_input.to(self.device)
+            dec_tokens, dec_scores = self.dec(decoder_input, dec_init_hidden)
         return dec_tokens, dec_scores
 
 
@@ -714,18 +735,20 @@ class GreedySearchHREDDecoder(nn.Module):
 
             # ω(dm,n−1, wm,n−1) = Ho dm,n−1 + Eo wm,n−1 + bo   (olo auto se
             # diastasi emb_size*2
-            emb_inf_vec = self.dec.emb_to_emb2(input_embed).squeeze(dim=1)
-            dec_inf_vec = self.dec.dec_to_emb2(dec_out).squeeze(dim=1)
-            cont_inf_vec = self.dec.cont_to_emb2(context_encoded).squeeze(
-                dim=0)
-
-            total_out = dec_inf_vec + cont_inf_vec + emb_inf_vec
+            # emb_inf_vec = self.dec.emb_to_emb2(input_embed).squeeze(dim=1)
+            # dec_inf_vec = self.dec.dec_to_emb2(dec_out).squeeze(dim=1)
+            # cont_inf_vec = self.dec.cont_to_emb2(context_encoded).squeeze(
+            #     dim=0)
+            #
+            # total_out = dec_inf_vec + cont_inf_vec + emb_inf_vec
 
             #after max_out total_out dims:  emb_size
-            total_out = self.dec.max_out(total_out)
-            out = self.dec.embed_out(total_out)
+            # total_out = self.dec.max_out(total_out)
+            # out = self.dec.embed_out(total_out)
 
+            out = self.output_layer(dec_out.squeeze(dim=1))
             out = F.softmax(out, dim=1)
+
             decoder_scores, dec_input = torch.max(out, dim=1)
             all_tokens = torch.cat((all_tokens, dec_input), dim=0)
             all_scores = torch.cat((all_scores, decoder_scores), dim=0)
