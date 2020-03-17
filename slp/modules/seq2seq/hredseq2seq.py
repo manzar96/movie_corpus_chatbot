@@ -451,7 +451,10 @@ class HREDSeq2Seq(nn.Module):
 
         return dec_out
 
-
+"""
+This one passes question from the context encoder! not so good, because it 
+has no logic.
+"""
 class HREDSeq2Seq_Context(nn.Module):
     def __init__(self, options, emb_size, vocab_size, enc_embeddings,
                  dec_embeddings, sos_index, device):
