@@ -7,6 +7,25 @@ from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHREDSeq2Seq
 
+import unicodedata
+import re
+
+def unicodeToAscii(self, s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+
+# Lowercase, trim, and remove non-letter characters
+def normalizeString(self, s):
+    s = self.unicodeToAscii(s.lower().strip())
+    s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    s = re.sub(r"\s+", r" ", s).strip()
+    return s
+
+
 def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  device):
 
@@ -68,7 +87,7 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             if input_sentence1 == 'q' or input_sentence1 == 'quit': break
 
             # Normalize sentence
-            #input_sentence = normalizeString(input_sentence)
+            input_sentence1 = normalizeString(input_sentence1)
 
             # Evaluate sentence
             for t in transforms:
