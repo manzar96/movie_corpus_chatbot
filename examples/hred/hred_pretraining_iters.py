@@ -50,7 +50,10 @@ if __name__ == '__main__':
 
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='HRED parameter options')
-    parser.add_argument('-n', dest='name', help='enter suffix for model files')
+
+    parser.add_argument('--ckpt', type=str, help='Model checkpoint')
+    parser.add_argument('--embeddings', type=str, help='Embeddings file')
+    parser.add_argument('--emb_dim', type=int, help='Embeddings dimension')
 
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
@@ -147,9 +150,9 @@ if __name__ == '__main__':
     # --- create new embedding file ---
 
     new_emb_file = './cache/new_embs.txt'
-    old_emb_file = './cache/glove.6B.50d.txt'
+    old_emb_file = options.embeddings
     freq_words_file = './cache/freq_words.txt'
-    emb_dim = 50
+    emb_dim = options.emb_dim
 
     create_emb_file(new_emb_file, old_emb_file, freq_words_file, vocab_dict,
                     most_freq=10000)
@@ -191,10 +194,8 @@ if __name__ == '__main__':
     print("unk index {}".format(unk_index))
 
     # --- make model and train it ---
-    if options.name is None:
-        assert False, "Give model name for checkpoint!"
 
-    checkpoint_dir = os.path.join('./checkpoints/hred/pretrained', options.name)
+    checkpoint_dir = options.ckpt
     info_dir = os.path.join(checkpoint_dir, "info.txt")
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
