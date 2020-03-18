@@ -10,7 +10,7 @@ from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHREDSeq2Seq
 import unicodedata
 import re
 
-def unicodeToAscii(self, s):
+def unicodeToAscii( s):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
@@ -18,8 +18,8 @@ def unicodeToAscii(self, s):
 
 
 # Lowercase, trim, and remove non-letter characters
-def normalizeString(self, s):
-    s = self.unicodeToAscii(s.lower().strip())
+def normalizeString( s):
+    s = unicodeToAscii(s.lower().strip())
     s = re.sub(r"([.!?])", r" \1", s)
     s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
     s = re.sub(r"\s+", r" ", s).strip()
