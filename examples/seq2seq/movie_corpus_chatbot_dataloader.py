@@ -269,11 +269,11 @@ dataset.threshold_data(MAX_LENGTH, tokenizer=SpacyTokenizer())
 dataset.trim_words(MIN_COUNT, tokenizer=SpacyTokenizer())
 
 # Load embeddings
-emb_file = './cache/glove.6B.300d.txt'
+emb_file = './cache/glove.6B.50d.txt'
 new_emb_file = './cache/new_embs.txt'
 
 create_emb_file(new_emb_file, emb_file, dataset.word2count)
-loader = EmbeddingsLoader(new_emb_file, 300, extra_tokens=SPECIAL_TOKENS)
+loader = EmbeddingsLoader(new_emb_file, 50, extra_tokens=SPECIAL_TOKENS)
 word2idx, idx2word, embeddings = loader.load()
 
 # receive sos,eos and pad tokens
@@ -317,19 +317,19 @@ train_loader, val_loader = train_test_split(dataset, BATCH_TRAIN_SIZE,
                                             BATCH_VAL_SIZE)
 
 embedding = nn.Embedding(len(word2idx),300)
-hidden_size=512
-encoder_n_layers=2
+hidden_size=256
+encoder_n_layers=1
 dropout=0.2
 device = DEVICE
-decoder_n_layers=2
+decoder_n_layers=1
 out_size = embedding.num_embeddings
 teacher_forcing_ratio=0.9
 
 encoder = EncoderLSTM(embedding, weights_matrix=None,
                       hidden_size=hidden_size,
                       num_layers=encoder_n_layers, dropout=dropout,
-                      bidirectional=True, rnn_type='gru', batch_first=True,
-                      emb_train=True, device=device)
+                      bidirectional=False, rnn_type='gru', batch_first=True,
+                      emb_train=False, device=device)
 decoder = DecoderLSTMv2(embedding, weights_matrix=None,
                         hidden_size=hidden_size,
                         output_size=out_size, max_target_len=10,
@@ -340,6 +340,8 @@ decoder = DecoderLSTMv2(embedding, weights_matrix=None,
 
 model = EncoderDecoder_SeqCrossEntropy(encoder, decoder, bos_index,
                                        teacher_forcing_ratio, device)
+
+import ipdb;ipdb.set_trace()
 model = model.to(device)
 
 criterion = SequenceCrossEntropyLoss()
