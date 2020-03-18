@@ -14,7 +14,7 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
 from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, HREDSeq2Seq_Context
 from slp.trainer.trainer import HREDIterationsTrainer
-
+from slp.data.moviecorpus import MovieCorpusDatasetv2
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
 BATCH_TRAIN_SIZE = 16
@@ -141,12 +141,19 @@ if __name__ == '__main__':
                                      append_eos=True,
                                      specials=HRED_SPECIAL_TOKENS)
 
+    '''
     dataset = SubTle(
         "./data/corpus0sDialogues.txt", samples_limit=options.samplelimit,
         transforms=[
             tokenizer])
     vocab_dict = dataset.create_vocab_dict(tokenizer)
-
+    '''
+    dataset = MovieCorpusDatasetv2('./data/', transforms=None)
+    # Preprocess dataset
+    dataset.normalize_data()
+    dataset.threshold_data(10, tokenizer=DialogSpacyTokenizer())
+    dataset.trim_words(3, tokenizer=DialogSpacyTokenizer())
+    vocab_dict = dataset.create_vocab_dict(tokenizer)
     # --- create new embedding file ---
 
     new_emb_file = './cache/new_embs.txt'
@@ -170,10 +177,18 @@ if __name__ == '__main__':
 
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
+    '''
     dataset = SubTle("./data/corpus0sDialogues.txt",
-                     samples_limit=options.samplelimit,
-                     transforms=[tokenizer, to_token_ids, to_tensor])
-
+                 samples_limit=options.samplelimit,
+                 transforms=[tokenizer, to_token_ids, to_tensor])
+    '''
+    dataset = MovieCorpusDatasetv2('./data/', transforms=[tokenizer,
+                                                          to_token_ids,
+                                                          to_tensor])
+    dataset.normalize_data()
+    dataset.threshold_data(10, tokenizer=DialogSpacyTokenizer())
+    dataset.trim_words(3, tokenizer=DialogSpacyTokenizer())
+    vocab_dict = dataset.create_vocab_dict(tokenizer)
     print("Dataset size: {}".format(len(dataset)))
     # --- make train and val loaders ---
 
