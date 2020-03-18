@@ -269,11 +269,11 @@ dataset.threshold_data(MAX_LENGTH, tokenizer=SpacyTokenizer())
 dataset.trim_words(MIN_COUNT, tokenizer=SpacyTokenizer())
 
 # Load embeddings
-emb_file = './cache/glove.6B.50d.txt'
+emb_file = './cache/glove.6B.300d.txt'
 new_emb_file = './cache/new_embs.txt'
 
 create_emb_file(new_emb_file, emb_file, dataset.word2count)
-loader = EmbeddingsLoader(new_emb_file, 50, extra_tokens=SPECIAL_TOKENS)
+loader = EmbeddingsLoader(new_emb_file, 300, extra_tokens=SPECIAL_TOKENS)
 word2idx, idx2word, embeddings = loader.load()
 
 # receive sos,eos and pad tokens
