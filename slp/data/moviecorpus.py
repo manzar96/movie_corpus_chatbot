@@ -8,7 +8,7 @@ from zipfile import ZipFile
 
 from torch.utils.data import Dataset
 
-from slp.config.moviecorpus import MOVIECORPUS_URL
+from slp.config.urls import MOVIECORPUS_URL
 from slp.util.system import download_url
 from slp.data.transforms import *
 
@@ -286,20 +286,50 @@ class MovieCorpusDatasetv2(Dataset):
         self.pairs = keep_pairs
         self.word2count = self.word_counts(tokenizer)
 
-    def apply_transforms(self, transforms):
-        self.pairs = [[transforms(q), transforms(a)] for q, a in self.pairs]
+    def create_vocab_dict(self, tokenizer):
+        """
+        receives a tokenizer in order to split sentences and create
+        a dict-vocabulary with words counts.
+        """
+
+        voc_counts = {}
+        for s1, s2 in self.pairs:
+            words, counts = np.unique(np.array(tokenizer(s1)),
+                                      return_counts=True)
+            for word, count in zip(words, counts):
+                if word not in voc_counts.keys():
+                    voc_counts[word] = count
+                else:
+                    voc_counts[word] += count
+
+            words, counts = np.unique(np.array(tokenizer(s2)),
+                                      return_counts=True)
+            for word, count in zip(words, counts):
+                if word not in voc_counts.keys():
+                    voc_counts[word] = count
+                else:
+                    voc_counts[word] += count
+        return voc_counts
+
+    # def apply_transforms(self, transforms):
+    #     self.pairs = [[transforms(q), transforms(a)] for q, a in self.pairs]
+
+    def map(self, t):
+        self.transforms.append(t)
+        return self
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        question, answer = self.pairs[idx]
+        s1, s2 = self.pairs[idx]
 
         if self.transforms is not None:
-            question = self.transforms(question)
-            answer = self.transforms(answer)
+            for t in self.transforms:
+                s1 = t(s1)
+                s2 = t(s2)
+        return s1, s2
 
-        return question, answer
 
 
 if __name__ == '__main__':
@@ -316,7 +346,7 @@ if __name__ == '__main__':
     # data.filter_data(2, 13)
     # print(len(data))
 
-    data2 = MovieCorpusDataset('./data', transforms=None)
+    data2 = MovieCorpusDatasetv2('./data', transforms=None)
     data2.normalize_data()
     data2.threshold_data(10)
     data2.trim_words(3)
