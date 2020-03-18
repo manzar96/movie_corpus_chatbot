@@ -157,6 +157,7 @@ def training_mini_batches(train_loader,model, model_optimizer, n_iteration, clip
 
 
 def indexesFromSentence(word2index, sentence,eos_token):
+    
     return [word2index[word] for word in sentence.split(' ')] + [eos_token]
 
 def unicodeToAscii(s):
@@ -177,6 +178,7 @@ def normalizeString(s):
 def evaluate(searcher, word2idx,idx2word, sentence, max_length):
     # Format input sentence as a batch
     # words -> indexes
+
     indexes_batch = [indexesFromSentence(word2idx, sentence, word2idx[SPECIAL_TOKENS.EOS.value])]
     # Create lengths tensor
     lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
@@ -273,7 +275,6 @@ new_emb_file = './cache/new_embs.txt'
 create_emb_file(new_emb_file, emb_file, dataset.word2count)
 loader = EmbeddingsLoader(new_emb_file, 300, extra_tokens=SPECIAL_TOKENS)
 word2idx, idx2word, embeddings = loader.load()
-
 
 # receive sos,eos and pad tokens
 pad_index = word2idx[SPECIAL_TOKENS.PAD.value]
