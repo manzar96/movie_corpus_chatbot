@@ -132,6 +132,8 @@ if __name__ == '__main__':
     parser.add_argument('-shared', action='store_true',
                         default=False, help='shared weights between encoder '
                                             'and decoder')
+    parser.add_argument('-shared_emb', action='store_true',
+                        default=False, help='shared embedding layer')
 
     options = parser.parse_args()
 

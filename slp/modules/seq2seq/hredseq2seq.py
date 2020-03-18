@@ -342,6 +342,9 @@ class HREDSeq2Seq(nn.Module):
                            rnn_type=options.dec_rnn_type,
                            device=device)
 
+        if options.shared_emb:
+            self.dec.embed_in = self.enc.word_rnn.embed
+
         if options.shared:
             self.dec.embed_in = self.enc.word_rnn.embed
             self.dec.rnn = self.enc.word_rnn.rnn.rnn
