@@ -18,8 +18,8 @@ from slp.trainer.trainer import HREDTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
-BATCH_TRAIN_SIZE = 16
-BATCH_VAL_SIZE = 16
+BATCH_TRAIN_SIZE = 64
+BATCH_VAL_SIZE = 34
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                     sos_index, checkpoint_dir=None, device=DEVICE):
