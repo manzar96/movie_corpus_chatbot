@@ -650,9 +650,8 @@ class GreedySearchHREDSeq2Seq(nn.Module):
             decoder_input = torch.zeros(1, 1).long()
             decoder_input = decoder_input.to(self.device)
             dec_tokens, dec_scores = self.dec(decoder_input, dec_init_hidden)
-
+            self.first_time = False
         else:
-
             _, hidden1 = self.enc(input_seq1, input_length1)
             _, hidden2 = self.enc(input_seq2, input_length2)
 
@@ -689,14 +688,12 @@ class GreedySearchHREDSeq2Seq(nn.Module):
                                                    self.options.dec_hidden_size)
             # edw isws thelei contiguous!!!
 
-            # edw ftiaxnw to input (nomizw einai midenika alla sto paper vazei 1)
-            # decoder_input = [self.sos_index for _ in range(u3.shape[0])]
-            # decoder_input = torch.tensor(decoder_input).long()
-            # decoder_input = decoder_input.unsqueeze(dim=1)
+            # decoder_input = torch.zeros(1, 1).long()
             # decoder_input = decoder_input.to(self.device)
 
-            decoder_input = torch.zeros(1, 1).long()
+            decoder_input = torch.tensor([self.sos_index]).long().unsqueeze(dim=1)
             decoder_input = decoder_input.to(self.device)
+
             dec_tokens, dec_scores = self.dec(decoder_input, dec_init_hidden)
         return dec_tokens, dec_scores
 
