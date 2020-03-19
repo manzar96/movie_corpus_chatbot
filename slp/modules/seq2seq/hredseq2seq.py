@@ -372,11 +372,9 @@ class HREDSeq2Seq(nn.Module):
                     param.requires_grad = False
         else:
             for param in self.cont_enc.rnn.parameters():
-                if param.requires_grad:
-                    param.requires_grad = True
+                param.requires_grad = True
             for param in self.cont_enc_to_dec.parameters():
-                if param.requires_grad:
-                    param.requires_grad = True
+                param.requires_grad = True
 
     def forward(self, u1, l1, u2, l2, u3, l3):
         if self.options.pretraining:
