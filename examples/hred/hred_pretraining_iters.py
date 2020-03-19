@@ -121,7 +121,7 @@ if __name__ == '__main__':
                         default=False, help='Pretraining model (only encoder'
                                             'decoder)')
     parser.add_argument('-sl', dest='samplelimit', type=int,
-                        default=100, help='sample limit used for training')
+                        default=None, help='sample limit used for training')
     parser.add_argument('-iters', type=int,
                         default=1000, help='iterations for training in mini '
                                            'batches')
@@ -151,11 +151,11 @@ if __name__ == '__main__':
     vocab_dict = dataset.create_vocab_dict(tokenizer)
     '''
     dataset = MovieCorpusDatasetv2('./data/', transforms=None)
-    # Preprocess dataset
     dataset.normalize_data()
     dataset.threshold_data(10, tokenizer=DialogSpacyTokenizer())
     dataset.trim_words(3, tokenizer=DialogSpacyTokenizer())
     vocab_dict = dataset.create_vocab_dict(tokenizer)
+
     # --- create new embedding file ---
 
     new_emb_file = './cache/new_embs.txt'
@@ -167,7 +167,6 @@ if __name__ == '__main__':
                     most_freq=10000)
 
     # --- load new embeddings! ---
-
     word2idx, idx2word, embeddings = EmbeddingsLoader(new_emb_file, emb_dim,
                                                       extra_tokens=
                                                       HRED_SPECIAL_TOKENS
@@ -176,7 +175,6 @@ if __name__ == '__main__':
     print("Vocabulary size: {}".format(vocab_size))
 
     # --- read dataset again and apply transforms ---
-
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
     '''
@@ -190,7 +188,7 @@ if __name__ == '__main__':
     dataset.normalize_data()
     dataset.threshold_data(10, tokenizer=DialogSpacyTokenizer())
     dataset.trim_words(3, tokenizer=DialogSpacyTokenizer())
-    vocab_dict = dataset.create_vocab_dict(tokenizer)
+
     print("Dataset size: {}".format(len(dataset)))
     # --- make train and val loaders ---
 
