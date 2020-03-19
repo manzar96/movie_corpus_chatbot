@@ -359,6 +359,9 @@ class HREDSeq2Seq(nn.Module):
         # paper reference: A Hierarchical Recurrent Encoder-Decoder
         # for Generative Context-Aware Query Suggestion, 2015
         # dm,0 = tanh(D0sm−1 + b0)  (equation 7)
+
+        self.enc_to_dec = nn.Linear(self.enc.hidden_size,
+                                    self.dec.hidden_size)
         self.cont_enc_to_dec = nn.Linear(self.cont_enc.hidden_size,
                                          self.dec.hidden_size, bias=True)
         self.tanh = nn.Tanh()
@@ -392,6 +395,8 @@ class HREDSeq2Seq(nn.Module):
             dec_init_hidden = hidden.view(self.options.dec_num_layers,
                                           u3.shape[0],
                                           self.options.dec_hidden_size)
+            # dec_init_hidden = self.tanh(self.enc_to_dec(hidden))
+            # dec_init_hidden = hidden[:self.dec.num_layers]
 
             #decoder_input = torch.zeros(u3.shape[0], 1).long()
             decoder_input = torch.tensor([self.sos_index for _ in range(
