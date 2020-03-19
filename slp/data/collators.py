@@ -78,6 +78,7 @@ class HRED_Subtle_Collator(object):
 
         empty_input = torch.zeros(inputs1.shape[0], inputs1.shape[1],
                                   device=self.device)
+        empty_input = empty_input.long()
         len_empty = torch.tensor([len(s) for s in empty_input],
                                  device=self.device)
         return empty_input, len_empty, inputs1, lengths1, inputs2, lengths2
