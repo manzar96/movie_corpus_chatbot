@@ -199,8 +199,6 @@ class MovieCorpusDatasetv2(Dataset):
         pairs = [[s for s in l.split('\t')] for l in lines]
         return pairs
 
-        return s
-
     def normalize_data(self):
         norm_pairs = [[self.normalizeString(pair[0]), self.normalizeString(
             pair[1])] for pair in self.pairs]
@@ -315,6 +313,8 @@ class MovieCorpusDatasetv2(Dataset):
     #     self.pairs = [[transforms(q), transforms(a)] for q, a in self.pairs]
 
     def map(self, t):
+        if self.transforms is None:
+            self.transforms = []
         self.transforms.append(t)
         return self
 
