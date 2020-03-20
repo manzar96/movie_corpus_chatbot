@@ -8,7 +8,8 @@ from ignite.metrics import Loss
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.data.utils import train_test_split
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
-from slp.data.SubtleTriples import SubTle
+from slp.data.Subtle import SubTle
+from slp.data.moviecorpus import MovieCorpusDatasetv2
 from slp.data.collators import HRED_Subtle_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 
@@ -53,10 +54,13 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 if __name__ == '__main__':
 
     # --- fix argument parser default values --
-    parser = argparse.ArgumentParser(description='HRED parameter options')
-    parser.add_argument('--ckpt', type=str, help='Model checkpoint')
-    parser.add_argument('--embeddings', type=str, help='Embeddings file')
-    parser.add_argument('--emb_dim', type=int, help='Embeddings dimension')
+    parser = argparse.ArgumentParser(description='Main options')
+    parser.add_argument('-dataset', type=str, help='Dataset used')
+    parser.add_argument('-preprocess', action='store_true', default=False,
+                        help='Preprocess dataset used')
+    parser.add_argument('-ckpt', type=str, help='Model checkpoint')
+    parser.add_argument('-embeddings', type=str, help='Embeddings file')
+    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension')
     
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
@@ -137,29 +141,29 @@ if __name__ == '__main__':
     options = parser.parse_args()
 
     # ---  read data to create vocabulary dict ---
-
-    tokenizer = DialogSpacyTokenizer(lower=True, prepend_sos=True,
-                                     append_eos=True,
+    tokenizer = DialogSpacyTokenizer(lower=True,
                                      specials=HRED_SPECIAL_TOKENS)
+    if options.dataset == "movie":
+        dataset = MovieCorpusDatasetv2('./data/', transforms=None)
+    elif options.dataset == "subtle":
+        dataset = SubTle("./data/corpus0sDialogues.txt",
+                         samples_limit=options.samplelimit, transforms=None)
+    else:
+        assert False, "Specify dataset used in options (movie or subtle)"
 
-    dataset = SubTle(
-        "./data/corpus0sDialogues.txt", samples_limit=options.samplelimit,
-        transforms=[
-            tokenizer])
+    dataset.normalize_data()
+    if options.preprocess:
+        dataset.threshold_data(10, tokenizer=tokenizer)
+        dataset.trim_words(3, tokenizer=tokenizer)
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
-    # --- create new embedding file ---
-
+    # --- create new embedding file and load embeddings---
     new_emb_file = './cache/new_embs.txt'
     old_emb_file = options.embeddings
     freq_words_file = './cache/freq_words.txt'
     emb_dim = options.emb_dim
-
     create_emb_file(new_emb_file, old_emb_file, freq_words_file, vocab_dict,
                     most_freq=10000)
-
-    # --- load new embeddings! ---
-
     word2idx, idx2word, embeddings = EmbeddingsLoader(new_emb_file, emb_dim,
                                                       extra_tokens=
                                                       HRED_SPECIAL_TOKENS
@@ -167,17 +171,17 @@ if __name__ == '__main__':
     vocab_size = len(word2idx)
     print("Vocabulary size: {}".format(vocab_size))
 
-    # --- read dataset again and apply transforms ---
-
+    # --- set dataset transforms ---
+    tokenizer = DialogSpacyTokenizer(lower=True, prepend_sos=True,
+                                     append_eos=True,
+                                     specials=HRED_SPECIAL_TOKENS)
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = SubTle("./data/corpus0sDialogues.txt",
-                     samples_limit=options.samplelimit,
-                     transforms=[tokenizer, to_token_ids, to_tensor])
-    
+    dataset = dataset.map(tokenizer).map(to_token_ids).map(to_tensor)
     print("Dataset size: {}".format(len(dataset)))
-    # --- make train and val loaders ---
 
+    import ipdb;ipdb.set_trace()
+    # --- make train and val loaders ---
     collator_fn = HRED_Subtle_Collator(device='cpu')
     train_loader, val_loader = train_test_split(dataset,
                                                 batch_train=BATCH_TRAIN_SIZE,
