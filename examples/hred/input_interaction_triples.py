@@ -1,6 +1,6 @@
 import torch
 import argparse
-from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
+from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
@@ -58,7 +58,7 @@ def evaluate(searcher, idx2word, sentence1, sentence2, device):
 
 
 def evaluate_input(searcher, word2idx, idx2word, device):
-    tokenizer = SpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
+    tokenizer = DialogSpacyTokenizer(lower=True, specials=HRED_SPECIAL_TOKENS)
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
     transforms = [tokenizer, to_token_ids, to_tensor]
