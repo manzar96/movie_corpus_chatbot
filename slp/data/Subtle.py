@@ -11,6 +11,7 @@ class SubTle(Dataset):
         self.ids, self.tuples = self.read_data(directory)
         self.transforms = transforms
         self.word2count = {}
+
     def read_data(self, directory):
         if self.limit is None:
             lines = open(directory).read().split("\n")[:-1]
@@ -68,7 +69,7 @@ class SubTle(Dataset):
                     keep.append(p)
         self.tuples = keep
 
-    def word_counts(self, tokenizer):
+    def create_vocab_dict(self, tokenizer=None):
         voc_counts = {}
         for question, answer in self.tuples:
             if tokenizer is None:
@@ -98,7 +99,7 @@ class SubTle(Dataset):
         return voc_counts
 
     def trim_words(self, min_count, tokenizer=None):
-        voc = self.word_counts(tokenizer)
+        voc = self.create_vocab_dict(tokenizer)
         keep_tuples = []
 
         for pair in self.tuples:
@@ -124,7 +125,7 @@ class SubTle(Dataset):
                         keep_input = False
                         break
                 # Check output sentence
-                for word in tokenizer(input_sentence):
+                for word in tokenizer(output_sentence):
                     if word not in voc or voc[word] < min_count:
                         keep_output = False
                         break
@@ -133,32 +134,7 @@ class SubTle(Dataset):
                 keep_tuples.append(pair)
 
         self.tuples = keep_tuples
-        self.word2count = self.word_counts(tokenizer)
-
-    def create_vocab_dict(self, tokenizer):
-        """
-        receives a tokenizer in order to split sentences and create
-        a dict-vocabulary with words counts.
-        """
-
-        voc_counts = {}
-        for s1, s2 in self.tuples:
-            words, counts = np.unique(np.array(tokenizer(s1)),
-                                      return_counts=True)
-            for word, count in zip(words, counts):
-                if word not in voc_counts.keys():
-                    voc_counts[word] = count
-                else:
-                    voc_counts[word] += count
-
-            words, counts = np.unique(np.array(tokenizer(s2)),
-                                      return_counts=True)
-            for word, count in zip(words, counts):
-                if word not in voc_counts.keys():
-                    voc_counts[word] = count
-                else:
-                    voc_counts[word] += count
-        return voc_counts
+        self.word2count = self.create_vocab_dict(tokenizer)
 
     def map(self, t):
         if self.transforms is None:
