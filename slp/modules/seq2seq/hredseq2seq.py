@@ -360,8 +360,8 @@ class HREDSeq2Seq(nn.Module):
         # for Generative Context-Aware Query Suggestion, 2015
         # dm,0 = tanh(D0sm−1 + b0)  (equation 7)
 
-        self.enc_to_dec = nn.Linear(self.enc.hidden_size,
-                                    self.dec.hidden_size)
+        # self.enc_to_dec = nn.Linear(self.enc.hidden_size,
+        #                             self.dec.hidden_size)
         self.cont_enc_to_dec = nn.Linear(self.cont_enc.hidden_size,
                                          self.dec.hidden_size, bias=True)
         self.tanh = nn.Tanh()

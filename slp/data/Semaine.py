@@ -2,6 +2,9 @@ from torch.utils.data import Dataset
 import glob
 import os
 import numpy as np
+import unicodedata
+import re
+
 
 class SemaineDataset(Dataset):
     def __init__(self, directory, transforms=None, train=True):
@@ -225,6 +228,26 @@ class SemaineDatasetTriplesOnly(Dataset):
         self.triples = self.create_triples(directory)
         self.transforms = transforms
 
+    def unicodeToAscii(self, s):
+        return ''.join(
+            c for c in unicodedata.normalize('NFD', s)
+            if unicodedata.category(c) != 'Mn'
+        )
+
+    # Lowercase, trim, and remove non-letter characters
+    def normalizeString(self, s):
+        s = self.unicodeToAscii(s.lower().strip())
+        s = re.sub(r"([.!?])", r" \1", s)
+        s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+        s = re.sub(r"\s+", r" ", s).strip()
+        return s
+
+    def normalize_data(self):
+        norm_pairs = [[self.normalizeString(pair[0]), self.normalizeString(
+            pair[1]), self.normalizeString(
+            pair[2])] for pair in self.triples]
+        self.triples = norm_pairs
+
     def create_triples(self, directory):
         path = os.path.join(directory, "Sessions")
         triples=[]
@@ -244,35 +267,44 @@ class SemaineDatasetTriplesOnly(Dataset):
         return triples
 
     def map(self, t):
+        if self.transforms is None:
+            self.transforms = []
         self.transforms.append(t)
         return self
 
-    def create_vocab_dict(self, tokenizer):
-        """
-        receives a tokenizer in order to split sentences and create
-        a dict-vocabulary with words counts.
-        """
-
+    def create_vocab_dict(self, tokenizer=None):
         voc_counts = {}
         for s1, s2, s3 in self.triples:
-            words, counts = np.unique(np.array(tokenizer(s1)),
-                                      return_counts=True)
+            if tokenizer is None:
+                words, counts = np.unique(np.array(s1.split(' ')),
+                                          return_counts=True)
+            else:
+                words, counts = np.unique(np.array(tokenizer(s1)),
+                                          return_counts=True)
             for word, count in zip(words, counts):
                 if word not in voc_counts.keys():
                     voc_counts[word] = count
                 else:
                     voc_counts[word] += count
 
-            words, counts = np.unique(np.array(tokenizer(s2)),
-                                      return_counts=True)
+            if tokenizer is None:
+                words, counts = np.unique(np.array(s2.split(' ')),
+                                          return_counts=True)
+            else:
+                words, counts = np.unique(np.array(tokenizer(s2)),
+                                          return_counts=True)
             for word, count in zip(words, counts):
                 if word not in voc_counts.keys():
                     voc_counts[word] = count
                 else:
                     voc_counts[word] += count
 
-            words, counts = np.unique(np.array(tokenizer(s3)),
-                                      return_counts=True)
+            if tokenizer is None:
+                words, counts = np.unique(np.array(s3.split(' ')),
+                                          return_counts=True)
+            else:
+                words, counts = np.unique(np.array(tokenizer(s3)),
+                                          return_counts=True)
             for word, count in zip(words, counts):
                 if word not in voc_counts.keys():
                     voc_counts[word] = count
