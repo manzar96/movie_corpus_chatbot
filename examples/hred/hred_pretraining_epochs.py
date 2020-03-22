@@ -241,3 +241,4 @@ if __name__ == '__main__':
                               device=DEVICE)
 
     final_score = trainer.fit(train_loader, val_loader, epochs=options.epochs)
+    print("data stored in: {}\n".format(checkpoint_dir))

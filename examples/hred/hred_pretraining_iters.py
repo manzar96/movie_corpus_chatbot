@@ -239,3 +239,4 @@ if __name__ == '__main__':
                               device=DEVICE)
 
     trainer.fit(train_loader, val_loader, n_iters=options.iters)
+    print("data stored in: {}\n".format(checkpoint_dir))
