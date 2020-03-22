@@ -45,16 +45,6 @@ def load_embeddings(emb_file, emb_dim):
     return word2idx, idx2word, embeddings
 
 
-# def load_model_from_checkpoint(embfile, checkpointfile,device):
-#
-#     word2idx, idx2word, embeddings = load_embeddings(embfile)
-#
-#     model = create_model(embeddings)
-#     model = from_checkpoint(checkpointfile, model, map_location='cpu')
-#     model = model.to(device)
-#
-#     return model
-
 def evaluate(searcher, idx2word, previous, sentence1, device):
 
     if previous is None:
