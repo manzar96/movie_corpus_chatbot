@@ -120,7 +120,10 @@ if __name__ == '__main__':
     parser.add_argument('-tf', dest='teacherforcing_ratio',
                         action='store_true',
                         default=1., help='teacher forcing ratio')
-
+    parser.add_argument('-pt', dest='pretraining',
+                        action='store_true',
+                        default=False, help='Pretraining model (only encoder'
+                                            'decoder)')
     parser.add_argument('-iters', type=int,
                         default=1000, help='iterations for training in mini '
                                            'batches')
