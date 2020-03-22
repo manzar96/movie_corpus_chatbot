@@ -2,6 +2,7 @@ import os
 import torch
 import argparse
 from torch.optim import Adam
+from ignite.metrics import Loss
 
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
 from slp.data.utils import train_test_split
@@ -11,7 +12,7 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
 from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
-from slp.trainer.trainer import HREDIterationsTrainer
+from slp.trainer.trainer import HREDTrainer
 
 from slp.util import from_checkpoint
 
@@ -43,13 +44,16 @@ def load_trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
     criterion = SequenceCrossEntropyLoss(pad_index)
     perplexity = Perplexity(pad_index)
-    metrics = [perplexity]
 
-    trainer = HREDIterationsTrainer(model, optimizer, criterion, metrics,
-                                    checkpoint_dir=checkpoint_dir,
-                                    save_every=options.save_every,
-                                    print_every=options.print_every,
-                                    device=device)
+    metrics = {
+        'loss': Loss(criterion),
+        'ppl': Loss(perplexity)}
+
+    trainer = HREDTrainer(model, optimizer,
+                          checkpoint_dir=checkpoint_dir, metrics=metrics,
+                          non_blocking=True, retain_graph=False,
+                          patience=5,
+                          device=device, loss_fn=criterion)
     return trainer
 
 
@@ -126,13 +130,10 @@ if __name__ == '__main__':
                         action='store_true',
                         default=1., help='teacher forcing ratio')
 
-    parser.add_argument('-iters', type=int,
+    parser.add_argument('-epochs', type=int,
                         default=1000, help='iterations for training in mini '
                                            'batches')
-    parser.add_argument('-save_every', type=int,
-                        default=100, help='save every X iters')
-    parser.add_argument('-print_every', type=int,
-                        default=100, help='print every X iters')
+
     parser.add_argument('-shared', action='store_true',
                         default=False, help='shared weights between encoder '
                                             'and decoder')
@@ -246,5 +247,5 @@ if __name__ == '__main__':
                                    pad_index, sos_index, options.lckpt,
                                    checkpoint_dir, device=DEVICE)
 
-    trainer.fit(train_loader, val_loader, n_iters=options.iters)
+    trainer.fit(train_loader, val_loader, epochs=options.epochs)
     print("data stored in: {}\n".format(checkpoint_dir))
