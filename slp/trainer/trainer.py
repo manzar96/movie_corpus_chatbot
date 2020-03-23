@@ -17,7 +17,7 @@ from typing import cast, List, Optional, Tuple, TypeVar
 from slp.util import types
 from slp.util.parallel import DataParallelModel, DataParallelCriterion
 
-from slp.trainer.handlers import CheckpointHandler, EvaluationHandler
+from slp.trainer.handlers import CheckpointHandler, EvaluationHandlerTxt
 from slp.util import from_checkpoint, to_device
 from slp.util import log
 from slp.util import system
@@ -94,9 +94,10 @@ class Trainer(object):
         self.early_stop = EarlyStopping(
             patience, self._score_fn, self.trainer)
 
-        self.val_handler = EvaluationHandler(pbar=self.pbar,
+        self.val_handler = EvaluationHandlerTxt(pbar=self.pbar,
                                              validate_every=1,
-                                             early_stopping=self.early_stop)
+                                             early_stopping=self.early_stop,
+                                            checkpointdir=self.checkpoint_dir)
         self.attach()
         log.info(
             f'Trainer configured to run {experiment_name}\n'
@@ -232,7 +233,6 @@ class Trainer(object):
             self.valid_evaluator.add_event_handler(
                 Events.COMPLETED, self.checkpoint, ckpt)
         return self
-
 
     def attach(self: TrainerType) -> TrainerType:
         ra = RunningAverage(output_transform=lambda x: x)
