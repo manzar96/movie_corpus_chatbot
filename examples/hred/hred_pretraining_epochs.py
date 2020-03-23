@@ -128,7 +128,7 @@ if __name__ == '__main__':
                         default=False, help='Pretraining model (only encoder'
                                             'decoder)')
     parser.add_argument('-sl', dest='samplelimit', type=int,
-                        default=100000, help='sample limit used for training')
+                        default=None, help='sample limit used for training')
     parser.add_argument('-epochs', type=int, default=20, help='number of '
                                                               'epochs')
     parser.add_argument('-shared', action='store_true',
