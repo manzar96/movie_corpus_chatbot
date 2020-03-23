@@ -238,7 +238,10 @@ if __name__ == '__main__':
         info.write("More info: \n")
 
         info.close()
-
+    output_dir = os.path.join(checkpoint_dir, "output.txt")
+    with open(output_dir, "w") as out:
+        out.write("TRAINING AND VALIDATION RESULTS:\n")
+    out.close()
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
