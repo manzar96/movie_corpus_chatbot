@@ -66,7 +66,8 @@ class Embed(nn.Module):
         if embeddings is not None:
             log.info("Initializing Embedding layer with pre-trained weights!")
             self.init_embeddings(embeddings, trainable)
-
+        if not trainable:
+            self.embedding.weight.requires_grad = False
         # the dropout "layer" for the word embeddings
         self.dropout = nn.Dropout(dropout)
 
