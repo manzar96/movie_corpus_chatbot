@@ -457,8 +457,8 @@ class HREDSeq2Seq(nn.Module):
 
         return dec_out
 
-    def init_param(self):
-        for name, param in self.model.named_parameters():
+    def init_param(self, model):
+        for name, param in model.named_parameters():
             # skip over the embeddings so that the padding index ones are 0
             if 'embed' in name:
                 continue

@@ -1,4 +1,7 @@
 import os
+import time
+from tqdm import tqdm
+import math
 from typing import Union
 import torch
 import torch.nn as nn
@@ -335,7 +338,9 @@ class TransformerTrainer(Trainer):
         # TODO: BEAMSEARCH!!
         return y_pred, targets
 
-class HREDTrainer(SequentialTrainer):
+
+class HREDTrainer(Trainer):
+
     def parse_batch(
             self,
             batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
@@ -366,6 +371,7 @@ class HREDTrainer(SequentialTrainer):
             self.parse_batch(batch)
         y_pred = self.model(inputs1, lengths1, inputs2, lengths2, inputs3,
                             lengths3)
+        # y_pred = self.model(batch)
         # TODO: BEAMSEARCH!!
         return y_pred, inputs3
 
@@ -545,3 +551,323 @@ class HREDIterationsTrainer:
 
     def fit(self, train_loader, val_loader, n_iters):
         self.train_Iterations(n_iters, train_loader, val_loader)
+
+
+class HREDTrainerEpochs:
+
+    def __init__(self, model,
+                 optimizer, criterion,patience, metrics=None, scheduler=None,
+                 checkpoint_dir=None,  clip=None, device='cpu'):
+
+        self.model = model.to(device)
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.metrics = metrics
+        self.scheduler = scheduler
+        self.checkpoint_dir = checkpoint_dir
+        self.clip = clip
+        self.device = device
+        self.patience = patience
+
+    def parse_batch(
+            self,
+            batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+        inputs1 = to_device(batch[0], device=self.device)
+        lengths1 = to_device(batch[1], device=self.device)
+        inputs2 = to_device(batch[2], device=self.device)
+        lengths2 = to_device(batch[3], device=self.device)
+        inputs3 = to_device(batch[4], device=self.device)
+        lengths3 = to_device(batch[5], device=self.device)
+        return inputs1, lengths1, inputs2, lengths2, inputs3, lengths3
+
+    def get_predictions_and_targets(
+            self: TrainerType,
+            batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+        inputs1, lengths1, inputs2, lengths2, inputs3, lengths3 = \
+            self.parse_batch(batch)
+        y_pred = self.model(inputs1, lengths1, inputs2, lengths2, inputs3,
+                            lengths3)
+        return y_pred, inputs3
+
+    def calc_val_loss(self, val_loader):
+        self.model.eval()
+        with torch.no_grad():
+
+            # cur_tc = model.dec.get_teacher_forcing()
+            # model.dec.set_teacher_forcing(True)
+
+            val_loss, num_words = 0,0
+            for index, batch in enumerate(tqdm(val_loader)):
+
+                preds,targets = self.get_predictions_and_targets(batch)
+
+
+                # we want to find the perplexity or likelihood of the provided sequence
+
+
+                preds = preds[:, :-1, :].contiguous().view(-1,preds.size(2))
+                targets = targets[:, 1:].contiguous().view(-1)
+
+                # do not include the lM loss, exp(loss) is perplexity
+                loss = self.criterion(preds, targets)
+                num_words += targets.ne(0).long().sum().item()
+                val_loss += loss.item()
+
+            # model.dec.set_teacher_forcing(cur_tc)
+
+            return val_loss / num_words
+
+    def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
+                    cur_patience, strt):
+
+        print("Epoch {}:".format(epoch+1))
+        print("Training loss: {} ".format(avg_train_epoch_loss))
+        print("Training ppl: {} ".format(math.exp(avg_train_epoch_loss)))
+        print("Validation loss: {} ".format(avg_val_epoch_loss))
+        print("Validation ppl: {} ".format(math.exp(avg_val_epoch_loss)))
+        print("Patience left: {}".format(self.patience-cur_patience))
+        print("Time: {} mins".format((time.time() - strt) / 60.0))
+        print("++++++++++++++++++")
+
+    def save_epoch(self, epoch, loss=None):
+
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
+        torch.save(self.model.state_dict(), os.path.join(
+            self.checkpoint_dir, '{}_{}.pth'.format(epoch, 'checkpoint')))
+        torch.save(self.optimizer.state_dict(), os.path.join(
+            self.checkpoint_dir, '{}_{}.pth'.format(epoch, 'checkpoint')))
+
+    def clip_gnorm(self):
+        for name, param in self.model.named_parameters():
+            if param.grad is not None:
+                param_norm = param.grad.data.norm()
+                if param_norm > 1:
+                    param.grad.data.mul_(1 / param_norm)
+
+    def train_step(self, sample_batch):
+        self.model.train()
+        # new_tc_ratio = 2100.0 / (2100.0 + math.exp(batch_id / 2100.0))
+        # self.model.dec.set_tc_ratio(new_tc_ratio)
+        self.optimizer.zero_grad()
+
+        preds, u3 = self.get_predictions_and_targets(sample_batch)
+
+        # # neglect last timestep!
+        preds = preds[:, :-1, :].contiguous().view(-1, preds.size(2))
+        # # neglect first timestep!!
+        u3 = u3[:, 1:].contiguous().view(-1)
+        import ipdb;ipdb.set_trace()
+        loss = self.criterion(preds, u3)
+        return loss, u3
+
+    def train_epochs(self, n_epochs, train_loader, val_loader):
+
+        best_val_loss, cur_patience, batch_id = 10000, 0, 0
+
+        print("Training model....")
+        self.model.train()
+        for epoch in range(n_epochs):
+            if cur_patience == self.patience:
+                break
+
+            train_epoch_loss, epoch_num_words = 0, 0
+            strt = time.time()
+
+            for i_batch, sample_batch in enumerate(tqdm(train_loader)):
+
+                loss, targets = self.train_step(sample_batch)
+                # ne() because 0 is the pad idx
+                target_toks = targets.ne(0).long().sum().item()
+
+                epoch_num_words += target_toks
+                train_epoch_loss += loss.item()
+                loss = loss / target_toks
+
+                # if options.lm:
+                #     lmpreds = lmpreds[:, :-1, :].contiguous().view(-1,
+                #                                                    lmpreds.size(
+                #                                                        2))
+
+                loss.backward(retain_graph=False)
+                # if options.lm:
+                #     lm_loss.backward()
+                self.clip_gnorm()
+                self.optimizer.step()
+
+                batch_id += 1
+
+            avg_val_loss = self.calc_val_loss(val_loader)
+            avg_train_loss = train_epoch_loss / epoch_num_words
+            self.print_epoch(epoch, avg_train_loss, avg_val_loss,
+                             cur_patience, strt)
+
+            if avg_val_loss < best_val_loss:
+                self.save_epoch(epoch)
+                best_val_loss = avg_val_loss
+                cur_patience = 0
+            else:
+                cur_patience += 1
+
+    def fit(self, train_loader, val_loader, epochs):
+        self.train_epochs(epochs, train_loader, val_loader)
+
+
+
+class HREDTrainerEpochsTest:
+
+    def __init__(self, model,
+                 optimizer, criterion,patience, metrics=None, scheduler=None,
+                 checkpoint_dir=None,  clip=None, device='cpu'):
+
+        self.model = model.to(device)
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.metrics = metrics
+        self.scheduler = scheduler
+        self.checkpoint_dir = checkpoint_dir
+        self.clip = clip
+        self.device = device
+        self.patience = patience
+
+    def parse_batch(
+            self,
+            batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+        inputs1 = to_device(batch[0], device=self.device)
+        lengths1 = to_device(batch[1], device=self.device)
+        inputs2 = to_device(batch[2], device=self.device)
+        lengths2 = to_device(batch[3], device=self.device)
+        inputs3 = to_device(batch[4], device=self.device)
+        lengths3 = to_device(batch[5], device=self.device)
+        return inputs1, lengths1, inputs2, lengths2, inputs3, lengths3
+
+    def get_predictions_and_targets(
+            self: TrainerType,
+            batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+        inputs1, lengths1, inputs2, lengths2, inputs3, lengths3 = \
+            self.parse_batch(batch)
+        y_pred = self.model(batch)
+        return y_pred, inputs3
+
+    def calc_val_loss(self, val_loader):
+        self.model.eval()
+        with torch.no_grad():
+
+            # cur_tc = model.dec.get_teacher_forcing()
+            # model.dec.set_teacher_forcing(True)
+
+            val_loss, num_words = 0,0
+            for index, batch in enumerate(tqdm(val_loader)):
+
+                preds,targets = self.get_predictions_and_targets(batch)
+
+
+                # we want to find the perplexity or likelihood of the provided sequence
+
+
+                preds = preds[:, :-1, :].contiguous().view(-1,preds.size(2))
+                targets = targets[:, 1:].contiguous().view(-1)
+
+                # do not include the lM loss, exp(loss) is perplexity
+                loss = self.criterion(preds, targets)
+                num_words += targets.ne(0).long().sum().item()
+                val_loss += loss.item()
+
+            # model.dec.set_teacher_forcing(cur_tc)
+
+            return val_loss / num_words
+
+    def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
+                    cur_patience, strt):
+
+        print("Epoch {}:".format(epoch+1))
+        print("Training loss: {} ".format(avg_train_epoch_loss))
+        print("Training ppl: {} ".format(math.exp(avg_train_epoch_loss)))
+        print("Validation loss: {} ".format(avg_val_epoch_loss))
+        print("Validation ppl: {} ".format(math.exp(avg_val_epoch_loss)))
+        print("Patience left: {}".format(self.patience-cur_patience))
+        print("Time: {} mins".format((time.time() - strt) / 60.0))
+        print("++++++++++++++++++")
+
+    def save_epoch(self, epoch, loss=None):
+
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
+        torch.save(self.model.state_dict(), os.path.join(
+            self.checkpoint_dir, '{}_{}.pth'.format(epoch, 'checkpoint')))
+        torch.save(self.optimizer.state_dict(), os.path.join(
+            self.checkpoint_dir, '{}_{}.pth'.format(epoch, 'checkpoint')))
+
+    def clip_gnorm(self):
+        for name, param in self.model.named_parameters():
+            if param.grad is not None:
+                param_norm = param.grad.data.norm()
+                if param_norm > 1:
+                    param.grad.data.mul_(1 / param_norm)
+
+    def train_step(self, sample_batch):
+        self.model.train()
+        # new_tc_ratio = 2100.0 / (2100.0 + math.exp(batch_id / 2100.0))
+        # self.model.dec.set_tc_ratio(new_tc_ratio)
+        self.optimizer.zero_grad()
+
+        preds, u3 = self.get_predictions_and_targets(sample_batch)
+
+        # # neglect last timestep!
+        preds = preds[:, :-1, :].contiguous().view(-1, preds.size(2))
+        # # neglect first timestep!!
+        u3 = u3[:, 1:].contiguous().view(-1)
+
+        loss = self.criterion(preds, u3)
+        return loss, u3
+
+    def train_epochs(self, n_epochs, train_loader, val_loader):
+
+        best_val_loss, cur_patience, batch_id = 10000, 0, 0
+
+        print("Training model....")
+        self.model.train()
+        for epoch in range(n_epochs):
+            if cur_patience == self.patience:
+                break
+
+            train_epoch_loss, epoch_num_words = 0, 0
+            strt = time.time()
+
+            for i_batch, sample_batch in enumerate(tqdm(train_loader)):
+
+                loss, targets = self.train_step(sample_batch)
+                # ne() because 0 is the pad idx
+                target_toks = targets.ne(0).long().sum().item()
+
+                epoch_num_words += target_toks
+                train_epoch_loss += loss.item()
+                loss = loss / target_toks
+
+                # if options.lm:
+                #     lmpreds = lmpreds[:, :-1, :].contiguous().view(-1,
+                #                                                    lmpreds.size(
+                #                                                        2))
+
+                loss.backward(retain_graph=False)
+                # if options.lm:
+                #     lm_loss.backward()
+                self.clip_gnorm()
+                self.optimizer.step()
+
+                batch_id += 1
+
+            avg_val_loss = self.calc_val_loss(val_loader)
+            avg_train_loss = train_epoch_loss / epoch_num_words
+            self.print_epoch(epoch, avg_train_loss, avg_val_loss,
+                             cur_patience, strt)
+
+            if avg_val_loss < best_val_loss:
+                self.save_epoch(epoch)
+                best_val_loss = avg_val_loss
+                cur_patience = 0
+            else:
+                cur_patience += 1
+
+    def fit(self, train_loader, val_loader, epochs):
+        self.train_epochs(epochs, train_loader, val_loader)
