@@ -5,18 +5,18 @@ from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
-from slp.modules.seq2seq.hred_triples import HRED, GreedySearchHRED
+from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHREDSeq2Seq
 
 def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  device):
 
-    model = HRED(modeloptions, emb_dim, vocab_size, embeddings,
+    model = HREDSeq2Seq(modeloptions, emb_dim, vocab_size, embeddings,
                  embeddings, sos_index, device)
     return model
 
 
 def create_searcher(model, device):
-    searcher = GreedySearchHRED(model, device)
+    searcher = GreedySearchHREDSeq2Seq(model, device)
     return searcher
 
 
@@ -24,17 +24,6 @@ def load_embeddings(emb_file, emb_dim):
     loader = EmbeddingsLoader(emb_file, emb_dim, extra_tokens=HRED_SPECIAL_TOKENS)
     word2idx, idx2word, embeddings = loader.load()
     return word2idx, idx2word, embeddings
-
-
-# def load_model_from_checkpoint(embfile, checkpointfile,device):
-#
-#     word2idx, idx2word, embeddings = load_embeddings(embfile)
-#
-#     model = create_model(embeddings)
-#     model = from_checkpoint(checkpointfile, model, map_location='cpu')
-#     model = model.to(device)
-#
-#     return model
 
 def evaluate(searcher, idx2word, sentence1, sentence2, device):
 
@@ -62,7 +51,6 @@ def evaluate_input(searcher, word2idx, idx2word, device):
     to_token_ids = ToTokenIds(word2idx, specials=HRED_SPECIAL_TOKENS)
     to_tensor = ToTensor()
     transforms = [tokenizer, to_token_ids, to_tensor]
-    history = []
 
     while True:
         try:
@@ -91,8 +79,7 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             print("Error: Encountered unknown word.")
 
 
-def input_interaction(modeloptions, embfile, emb_dim, checkpointfile,
-                      outputfile, device):
+def input_interaction(modeloptions, embfile, emb_dim, checkpointfile, device):
 
     word2idx, idx2word, embeddings = load_embeddings(embfile, emb_dim)
     vocab_size = len(word2idx)
@@ -121,15 +108,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='HRED parameter options and'
                                                  'checkpoints')
 
-    parser.add_argument('--ckpt', type=str, help='Model checkpoint')
-    parser.add_argument('--embeddings', type=str, help='Embeddings file')
-    parser.add_argument('--emb_dim', type=int, help='Embeddings dimension')
+    parser.add_argument('-ckpt', type=str, help='Model checkpoint')
+    parser.add_argument('-embeddings', type=str, help='Embeddings file')
+    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension')
 
-    parser.add_argument('--output', type=str, help='Output file')
-    parser.add_argument('--device', type=str, help='Device cpu|cuda:X')
-
-    parser = argparse.ArgumentParser(description='HRED parameter options')
-    parser.add_argument('-n', dest='name', help='enter suffix for model files')
+    parser.add_argument('-device', type=str, help='Device cpu|cuda:X')
 
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
@@ -200,6 +183,8 @@ if __name__ == '__main__':
     parser.add_argument('-shared', action='store_true',
                         default=False, help='shared weights between encoder '
                                             'and decoder')
+    parser.add_argument('-shared_emb', action='store_true',
+                        default=False, help='shared embedding layer')
 
     options = parser.parse_args()
 
@@ -207,5 +192,4 @@ if __name__ == '__main__':
                       options.embeddings,
                       options.emb_dim,
                       options.ckpt,
-                      options.output,
                       options.device)

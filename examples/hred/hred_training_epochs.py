@@ -1,5 +1,6 @@
 import os
 import torch
+import torch.nn as nn
 import argparse
 from torch.optim import Adam
 from ignite.metrics import Loss
@@ -12,16 +13,18 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
 from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
-from slp.trainer.trainer import HREDTrainer
+from slp.trainer.trainer import HREDTrainer,HREDTrainerEpochs
 
 from slp.data.Semaine import SemaineDatasetTriplesOnly
 from slp.data.moviecorpus import MovieCorpusDatasetTriples
 from slp.data.DailyDialog import DailyDialogDataset
 
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
-BATCH_TRAIN_SIZE = 64
-BATCH_VAL_SIZE = 34
+BATCH_TRAIN_SIZE = 100
+BATCH_VAL_SIZE = 60
+
 
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
@@ -29,25 +32,32 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
     model = HREDSeq2Seq(options, emb_dim, vocab_size, embeddings, embeddings,
                  sos_index, device)
-
+    # init model params (rnn as orthogonal, others as normal except embeddings)
+    model.init_param(model)
     numparams = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print('Trainable Parameters: {}'.format(numparams))
+    import ipdb;ipdb.set_trace()
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
         lr=1e-3, weight_decay=1e-6)
 
-    criterion = SequenceCrossEntropyLoss(pad_index)
-    perplexity = Perplexity(pad_index)
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_index,reduction='sum')
 
-    metrics = {
-        'loss': Loss(criterion),
-        'ppl': Loss(perplexity)}
+    # perplexity = Perplexity(pad_index)
 
-    trainer = HREDTrainer(model, optimizer,
-                          checkpoint_dir=checkpoint_dir, metrics=metrics,
-                          non_blocking=True, retain_graph=False,
-                          patience=5,
-                          device=device, loss_fn=criterion)
+    # metrics = {
+    #     'loss': Loss(criterion),
+    #     'ppl': Loss(perplexity)}
+
+    # trainer = HREDTrainer(model, optimizer,
+    #                       checkpoint_dir=checkpoint_dir, metrics=metrics,
+    #                       non_blocking=True, retain_graph=False,
+    #                       patience=5,
+    #                       device=device, loss_fn=criterion)
+
+    trainer = HREDTrainerEpochs(model, optimizer, criterion,patience=5,
+                                    checkpoint_dir=checkpoint_dir,
+                                    device=device)
     return trainer
 
 
@@ -157,7 +167,7 @@ if __name__ == '__main__':
 
     dataset.normalize_data()
     if options.preprocess:
-        dataset.threshold_data(13, tokenizer=tokenizer)
+        dataset.threshold_data(30, tokenizer=tokenizer)
         dataset.trim_words(3, tokenizer=tokenizer)
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
