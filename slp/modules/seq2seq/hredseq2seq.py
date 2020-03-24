@@ -234,7 +234,7 @@ class HREDDecoder(nn.Module):
 
         #self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
         #self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
-        self.output_layer = nn.Linear(self.hidden_size, self.vocab_size)
+        self.embed_out = nn.Linear(self.hidden_size, self.vocab_size,bias=False)
 
 
     def forward(self, dec_input, targets, target_lens, dec_hidden=None,
@@ -287,7 +287,7 @@ class HREDDecoder(nn.Module):
 
                 # out = self.embed_out(total_out)
 
-                out = self.output_layer(dec_out.squeeze(dim=1))
+                out = self.embed_out(dec_out.squeeze(dim=1))
                 decoder_outputs.append(out)
 
                 dec_input = targets[:, i].unsqueeze(dim=1)
@@ -456,6 +456,16 @@ class HREDSeq2Seq(nn.Module):
             dec_out = self.dec(decoder_input, u3, l3, dec_init_hidden)
 
         return dec_out
+
+    def init_param(self):
+        for name, param in self.model.named_parameters():
+            # skip over the embeddings so that the padding index ones are 0
+            if 'embed' in name:
+                continue
+            elif ('rnn' in name or 'lm' in name) and len(param.size()) >= 2:
+                nn.init.orthogonal_(param)
+            else:
+                nn.init.normal_(param, 0, 0.01)
 
 """
 This one passes question from the context encoder! not so good, because it 
@@ -749,7 +759,7 @@ class GreedySearchHREDDecoder(nn.Module):
             # total_out = self.dec.max_out(total_out)
             # out = self.dec.embed_out(total_out)
 
-            out = self.dec.output_layer(dec_out.squeeze(dim=1))
+            out = self.dec.embed_out(dec_out.squeeze(dim=1))
             out = F.softmax(out, dim=1)
 
             decoder_scores, dec_input = torch.max(out, dim=1)
