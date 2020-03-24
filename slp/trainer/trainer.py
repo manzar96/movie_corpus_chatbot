@@ -657,7 +657,6 @@ class HREDTrainerEpochs:
         preds = preds[:, :-1, :].contiguous().view(-1, preds.size(2))
         # # neglect first timestep!!
         u3 = u3[:, 1:].contiguous().view(-1)
-        import ipdb;ipdb.set_trace()
         loss = self.criterion(preds, u3)
         return loss, u3
 
