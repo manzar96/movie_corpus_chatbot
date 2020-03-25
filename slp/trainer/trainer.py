@@ -699,15 +699,16 @@ class HREDTrainerEpochs:
 
             avg_val_loss = self.calc_val_loss(val_loader)
             avg_train_loss = train_epoch_loss / epoch_num_words
-            self.print_epoch(epoch, avg_train_loss, avg_val_loss,
-                             cur_patience, strt)
-
             if avg_val_loss < best_val_loss:
                 self.save_epoch(epoch)
                 best_val_loss = avg_val_loss
                 cur_patience = 0
             else:
                 cur_patience += 1
+            self.print_epoch(epoch, avg_train_loss, avg_val_loss,
+                             cur_patience, strt)
+
+
 
     def fit(self, train_loader, val_loader, epochs):
         self.train_epochs(epochs, train_loader, val_loader)
@@ -859,15 +860,16 @@ class HREDTrainerEpochsTest:
 
             avg_val_loss = self.calc_val_loss(val_loader)
             avg_train_loss = train_epoch_loss / epoch_num_words
-            self.print_epoch(epoch, avg_train_loss, avg_val_loss,
-                             cur_patience, strt)
-
             if avg_val_loss < best_val_loss:
                 self.save_epoch(epoch)
                 best_val_loss = avg_val_loss
                 cur_patience = 0
             else:
                 cur_patience += 1
+            self.print_epoch(epoch, avg_train_loss, avg_val_loss,
+                             cur_patience, strt)
+
+
 
     def fit(self, train_loader, val_loader, epochs):
         self.train_epochs(epochs, train_loader, val_loader)
