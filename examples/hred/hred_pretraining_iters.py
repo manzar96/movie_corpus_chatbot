@@ -1,6 +1,7 @@
 import os
 import torch
 import argparse
+import pickle
 from torch.optim import Adam
 
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
@@ -10,9 +11,9 @@ from slp.data.Subtle import SubTle
 from slp.data.moviecorpus import MovieCorpusDatasetv2
 from slp.data.collators import HRED_Subtle_Collator
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
-
+from slp.data.vocab import word2idx_from_dataset
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
-from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, HREDSeq2Seq_Context
+from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
 from slp.trainer.trainer import HREDIterationsTrainer
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -50,12 +51,18 @@ if __name__ == '__main__':
 
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='Main options')
-    parser.add_argument('-dataset', type=str, help='Dataset used')
+    parser.add_argument('-dataset', type=str, help='Dataset used',
+                        required=True)
     parser.add_argument('-preprocess', action='store_true', default=False,
                         help='Preprocess dataset used')
-    parser.add_argument('-ckpt', type=str, help='Model checkpoint')
-    parser.add_argument('-embeddings', type=str, help='Embeddings file')
-    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension')
+    parser.add_argument('-ckpt', type=str, help='Model checkpoint',
+                        required=True)
+    parser.add_argument('-embeddings', type=str, default=None,
+                        help='Embeddings file(optional)')
+    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension',
+                        required=True)
+    parser.add_argument('-iters', type=int, help='iters to train the model',
+                        required=True)
 
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
@@ -75,7 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         type=int,
                         default=256, help='context encoder input size')
-    parser.add_argument('-conthiddensize', dest='contenc_hidden_size',
+    parser.add_argument('-conthidden', dest='contenc_hidden_size',
                         type=int,
                         default=256, help='context encoder hidden size')
     parser.add_argument('-contnumlayers', dest='contenc_num_layers',
@@ -124,9 +131,7 @@ if __name__ == '__main__':
                                             'decoder)')
     parser.add_argument('-sl', dest='samplelimit', type=int,
                         default=None, help='sample limit used for training')
-    parser.add_argument('-iters', type=int,
-                        default=1000, help='iterations for training in mini '
-                                           'batches')
+
     parser.add_argument('-save_every', type=int,
                         default=100, help='save every X iters')
     parser.add_argument('-print_every', type=int,
@@ -138,6 +143,9 @@ if __name__ == '__main__':
                         default=False, help='shared embedding layer')
 
     options = parser.parse_args()
+    if options.pt is False:
+        assert False, "you are using this script to pretrain the model with " \
+                      "question-answer! -pt should be activated !"
 
     # ---  read data to create vocabulary dict ---
     tokenizer = DialogSpacyTokenizer(lower=True,
@@ -156,17 +164,25 @@ if __name__ == '__main__':
         dataset.trim_words(3, tokenizer=tokenizer)
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
-    # --- create new embedding file and load embeddings---
-    new_emb_file = './cache/new_embs.txt'
-    old_emb_file = options.embeddings
-    freq_words_file = './cache/freq_words.txt'
-    emb_dim = options.emb_dim
-    create_emb_file(new_emb_file, old_emb_file, freq_words_file, vocab_dict,
-                    most_freq=10000)
-    word2idx, idx2word, embeddings = EmbeddingsLoader(new_emb_file, emb_dim,
-                                                      extra_tokens=
-                                                      HRED_SPECIAL_TOKENS
-                                                      ).load()
+    # load embeddings from file or set None (to be randomly init)
+    if options.embeddings is not None:
+        new_emb_file = './cache/new_embs.txt'
+        old_emb_file = options.embeddings
+        freq_words_file = './cache/freq_words.txt'
+        emb_dim = options.emb_dim
+        create_emb_file(new_emb_file, old_emb_file, freq_words_file, vocab_dict,
+                        most_freq=10000)
+        word2idx, idx2word, embeddings = EmbeddingsLoader(new_emb_file, emb_dim,
+                                                          extra_tokens=
+                                                          HRED_SPECIAL_TOKENS
+                                                          ).load()
+    else:
+        word2idx, idx2word = word2idx_from_dataset(vocab_dict,
+                                                   most_freq=10000,
+                                                   extra_tokens=
+                                                   HRED_SPECIAL_TOKENS)
+        embeddings = None
+        emb_dim = options.emb_dim
     vocab_size = len(word2idx)
     print("Vocabulary size: {}".format(vocab_size))
 
@@ -203,7 +219,13 @@ if __name__ == '__main__':
     info_dir = os.path.join(checkpoint_dir, "info.txt")
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-
+    if options.embeddings is None:
+        with open(os.path.join(checkpoint_dir, 'word2idx.pickle'), 'wb') as \
+                file1:
+            pickle.dump(word2idx, file1, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join(checkpoint_dir, 'idx2word.pickle'), 'wb') as \
+                file2:
+            pickle.dump(word2idx, file2, protocol=pickle.HIGHEST_PROTOCOL)
     with open(info_dir, "w") as info:
         info.write("DATA USED INFO\n")
         info.write("Data samples: {} \n".format(len(dataset)))

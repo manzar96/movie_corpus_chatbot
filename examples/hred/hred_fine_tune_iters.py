@@ -143,7 +143,9 @@ if __name__ == '__main__':
                         default=False, help='shared embedding layer')
 
     options = parser.parse_args()
-
+    if options.pt is True:
+        assert False, "you are using this script to fine tune the whole " \
+                      "model! -pt should not be activated!"
     # ---  read data to create vocabulary dict ---
 
     tokenizer = DialogSpacyTokenizer(lower=True,
