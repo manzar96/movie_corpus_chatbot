@@ -241,7 +241,7 @@ if __name__ == '__main__':
             pickle.dump(word2idx, file1, protocol=pickle.HIGHEST_PROTOCOL)
         with open(os.path.join(checkpoint_dir, 'idx2word.pickle'), 'wb') as \
                 file2:
-            pickle.dump(word2idx, file2, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(idx2word, file2, protocol=pickle.HIGHEST_PROTOCOL)
     with open(info_dir, "w") as info:
         info.write("DATA USED INFO\n")
         info.write("Data samples: {} \n".format(len(dataset)))

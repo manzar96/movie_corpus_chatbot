@@ -69,7 +69,6 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             for t in transforms:
                 input_sentence1 = t(input_sentence1)
                 input_sentence2 = t(input_sentence2)
-
             output_words = evaluate(searcher, idx2word, input_sentence1,
                                     input_sentence2, device)
 
