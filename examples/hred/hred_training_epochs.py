@@ -153,7 +153,7 @@ if __name__ == '__main__':
                         default=False, help='shared embedding layer')
 
     options = parser.parse_args()
-    if options.pt is True:
+    if options.pretraining is True:
         assert False, "you are using this script to train the whole model! " \
                       "-pt should not be activated!"
     # ---  read data to create vocabulary dict ---

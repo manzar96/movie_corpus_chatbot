@@ -143,7 +143,7 @@ if __name__ == '__main__':
                         default=False, help='shared embedding layer')
 
     options = parser.parse_args()
-    if options.pt is False:
+    if options.pretraining is False:
         assert False, "you are using this script to pretrain the model with " \
                       "question-answer! -pt should be activated !"
 
