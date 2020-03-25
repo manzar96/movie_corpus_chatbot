@@ -9,6 +9,8 @@ from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHREDSeq2Seq
 
 import unicodedata
 import re
+import os
+import pickle
 
 def unicodeToAscii( s):
     return ''.join(
@@ -33,9 +35,9 @@ def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  embeddings, sos_index, device)
     return model
 
-
+from slp.modules.seq2seq.greedy import GreedySearchSeq2Seq
 def create_searcher(model, device):
-    searcher = GreedySearchHREDSeq2Seq(model, device)
+    searcher = GreedySearchSeq2Seq(model, device)
     return searcher
 
 
@@ -44,16 +46,6 @@ def load_embeddings(emb_file, emb_dim):
     word2idx, idx2word, embeddings = loader.load()
     return word2idx, idx2word, embeddings
 
-
-# def load_model_from_checkpoint(embfile, checkpointfile,device):
-#
-#     word2idx, idx2word, embeddings = load_embeddings(embfile)
-#
-#     model = create_model(embeddings)
-#     model = from_checkpoint(checkpointfile, model, map_location='cpu')
-#     model = model.to(device)
-#
-#     return model
 
 def evaluate(searcher, idx2word, sentence1, device):
 
@@ -64,7 +56,7 @@ def evaluate(searcher, idx2word, sentence1, device):
     lengths1 = lengths.to(device)
 
     empty_input = torch.zeros(input_batch1.shape[0], input_batch1.shape[1],
-                              device=device)
+                              device=device).long()
     len_empty = torch.tensor([len(s) for s in empty_input],
                              device=device)
     # Decode sentence with searcher
@@ -104,10 +96,23 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             print("Error: Encountered unknown word.")
 
 
-def input_interaction(modeloptions, embfile, emb_dim, checkpointfile,
-                      outputfile, device):
+def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
+                      checkpointfolder, device):
 
-    word2idx, idx2word, embeddings = load_embeddings(embfile, emb_dim)
+    if embfile is not None:
+        print("Embedding file given! Load embeddings...")
+        word2idx, idx2word, embeddings = load_embeddings(embfile, emb_dim)
+    else:
+        print("Embedding file not given! Load embedding dicts for checkpoint "
+              "folder...")
+        embeddings = None
+        with open(os.path.join(checkpointfolder, 'word2idx.pickle'), 'rb') as \
+                handle:
+            word2idx = pickle.load(handle)
+        with open(os.path.join(checkpointfolder, 'idx2word.pickle'), 'rb') as \
+                handle:
+            idx2word = pickle.load(handle)
+
     vocab_size = len(word2idx)
     pad_index = word2idx[HRED_SPECIAL_TOKENS.PAD.value]
     sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
@@ -116,7 +121,7 @@ def input_interaction(modeloptions, embfile, emb_dim, checkpointfile,
     #  --- load model using loaded embeddings ---
     model = create_model(modeloptions, embeddings, emb_dim, vocab_size,
                          sos_index, device)
-    model = from_checkpoint(checkpointfile, model, map_location='cpu')
+    model = from_checkpoint(modelcheckpoint, model, map_location='cpu')
     model = model.to(device)
     print("Loaded Model...")
     # --- create searcher for encoding user's input and for providing an
@@ -134,12 +139,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='HRED parameter options and'
                                                  'checkpoints')
 
-    parser.add_argument('--ckpt', type=str, help='Model checkpoint')
-    parser.add_argument('--embeddings', type=str, help='Embeddings file')
-    parser.add_argument('--emb_dim', type=int, help='Embeddings dimension')
+    parser.add_argument('-modelckpt', type=str, help='Model checkpoint',
+                        required=True)
+    parser.add_argument('-ckpt', type=str, help='checkpoint folder',
+                        required=True)
 
-    parser.add_argument('--output', type=str, help='Output file')
-    parser.add_argument('--device', type=str, help='Device cpu|cuda:X')
+    parser.add_argument('-embeddings', type=str, default=None,
+                        help='Embeddings file(optional)')
+    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension',
+                        required=True)
+
+    parser.add_argument('-device', type=str, help='Device cpu|cuda:X')
+
 
     parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
@@ -159,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         type=int,
                         default=256, help='context encoder input size')
-    parser.add_argument('-conthiddensize', dest='contenc_hidden_size',
+    parser.add_argument('-conthidden', dest='contenc_hidden_size',
                         type=int,
                         default=256, help='context encoder hidden size')
     parser.add_argument('-contnumlayers', dest='contenc_num_layers',
@@ -215,9 +226,14 @@ if __name__ == '__main__':
 
     options = parser.parse_args()
 
+    if options.pretraining is False:
+        assert False, "you are using this script to test encoder-decoder " \
+                      "model questions-answers."
     input_interaction(options,
                       options.embeddings,
                       options.emb_dim,
+                      options.modelckpt,
                       options.ckpt,
-                      options.output,
                       options.device)
+
+

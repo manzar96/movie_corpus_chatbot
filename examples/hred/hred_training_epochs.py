@@ -41,21 +41,23 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     import ipdb;ipdb.set_trace()
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
-        lr=1e-3, weight_decay=1e-6)
+        lr=1e-4, weight_decay=1e-6)
 
-    criterion = nn.CrossEntropyLoss(ignore_index=pad_index,reduction='sum')
-
+    # criterion = SequenceCrossEntropyLoss(pad_index)
+    #
     # perplexity = Perplexity(pad_index)
-
+    #
     # metrics = {
     #     'loss': Loss(criterion),
     #     'ppl': Loss(perplexity)}
-
+    #
     # trainer = HREDTrainer(model, optimizer,
     #                       checkpoint_dir=checkpoint_dir, metrics=metrics,
     #                       non_blocking=True, retain_graph=False,
     #                       patience=5,
     #                       device=device, loss_fn=criterion)
+
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_index,reduction='sum')
 
     trainer = HREDTrainerEpochs(model, optimizer, criterion,patience=5,
                                     checkpoint_dir=checkpoint_dir,
