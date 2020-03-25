@@ -198,7 +198,7 @@ if __name__ == '__main__':
                                                    HRED_SPECIAL_TOKENS)
         embeddings = None
         emb_dim = options.emb_dim
-
+    import ipdb;ipdb.set_trace()
     vocab_size = len(word2idx)
     print("Vocabulary size: {}".format(vocab_size))
 

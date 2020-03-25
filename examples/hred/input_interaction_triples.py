@@ -1,5 +1,7 @@
 import torch
 import argparse
+import pickle
+import os
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 
 from slp.util import from_checkpoint
@@ -79,9 +81,22 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             print("Error: Encountered unknown word.")
 
 
-def input_interaction(modeloptions, embfile, emb_dim, checkpointfile, device):
+def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
+                      checkpointfolder, device):
 
-    word2idx, idx2word, embeddings = load_embeddings(embfile, emb_dim)
+    if embfile is not None:
+        print("Embedding file given! Load embeddings...")
+        word2idx, idx2word, embeddings = load_embeddings(embfile, emb_dim)
+    else:
+        print("Embedding file not given! Load embedding dicts for checkpoint "
+              "folder...")
+        embeddings = None
+        with open(os.path.join(checkpointfolder, 'word2idx.pickle'), 'rb') as \
+                handle:
+            word2idx = pickle.load(handle)
+        with open(os.path.join(checkpointfolder, 'idx2word.pickle'), 'rb') as \
+                handle:
+            idx2word = pickle.load(handle)
     vocab_size = len(word2idx)
     pad_index = word2idx[HRED_SPECIAL_TOKENS.PAD.value]
     sos_index = word2idx[HRED_SPECIAL_TOKENS.SOU.value]
@@ -90,7 +105,7 @@ def input_interaction(modeloptions, embfile, emb_dim, checkpointfile, device):
     #  --- load model using loaded embeddings ---
     model = create_model(modeloptions, embeddings, emb_dim, vocab_size,
                          sos_index, device)
-    model = from_checkpoint(checkpointfile, model, map_location='cpu')
+    model = from_checkpoint(modelcheckpoint, model, map_location='cpu')
     model = model.to(device)
     print("Loaded Model...")
     # --- create searcher for encoding user's input and for providing an
@@ -105,12 +120,17 @@ def input_interaction(modeloptions, embfile, emb_dim, checkpointfile, device):
 if __name__ == '__main__':
 
     # --- fix argument parser default values --
-    parser = argparse.ArgumentParser(description='HRED parameter options and'
-                                                 'checkpoints')
+    parser = argparse.ArgumentParser(description='Main options')
 
-    parser.add_argument('-ckpt', type=str, help='Model checkpoint')
-    parser.add_argument('-embeddings', type=str, help='Embeddings file')
-    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension')
+    parser.add_argument('-modelckpt', type=str, help='Model checkpoint',
+                        required=True)
+    parser.add_argument('-ckpt', type=str, help='checkpoint folder',
+                        required=True)
+
+    parser.add_argument('-embeddings', type=str, default=None,
+                        help='Embeddings file(optional)')
+    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension',
+                        required=True)
 
     parser.add_argument('-device', type=str, help='Device cpu|cuda:X')
 
@@ -132,7 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         type=int,
                         default=256, help='context encoder input size')
-    parser.add_argument('-conthiddensize', dest='contenc_hidden_size',
+    parser.add_argument('-conthidden', dest='contenc_hidden_size',
                         type=int,
                         default=256, help='context encoder hidden size')
     parser.add_argument('-contnumlayers', dest='contenc_num_layers',
@@ -187,9 +207,13 @@ if __name__ == '__main__':
                         default=False, help='shared embedding layer')
 
     options = parser.parse_args()
-
+    if options.pretraining is True:
+        assert False, "you are using this script to test the whole model " \
+                      "using triples! activating only the encoder and the " \
+                      "decoder does not make sense!"
     input_interaction(options,
                       options.embeddings,
                       options.emb_dim,
+                      options.modelckpt,
                       options.ckpt,
                       options.device)

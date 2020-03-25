@@ -36,8 +36,8 @@ def word2idx_from_dataset(wordcounts, most_freq=None, extra_tokens=None):
     else:
         sorted_voc = sorted(wordcounts.items(), key=lambda kv: kv[1])
         for word in sorted_voc[-most_freq:]:
-            if word not in word2idx:
-                word2idx[word] = counter
-                idx2word[counter] = word
+            if word[0] not in word2idx:
+                word2idx[word[0]] = counter
+                idx2word[counter] = word[0]
                 counter += 1
     return word2idx, idx2word
