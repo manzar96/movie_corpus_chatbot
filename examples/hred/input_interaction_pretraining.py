@@ -5,7 +5,9 @@ from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import HRED_SPECIAL_TOKENS
-from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq, GreedySearchHREDSeq2Seq
+from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
+from slp.modules.seq2seq.searchers import GreedySearchSeq2Seq
+
 
 import unicodedata
 import re
@@ -35,7 +37,6 @@ def create_model(modeloptions, embeddings, emb_dim, vocab_size, sos_index,
                  embeddings, sos_index, device)
     return model
 
-from slp.modules.seq2seq.greedy import GreedySearchSeq2Seq
 def create_searcher(model, device):
     searcher = GreedySearchSeq2Seq(model, device)
     return searcher
