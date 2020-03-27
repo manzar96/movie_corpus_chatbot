@@ -34,23 +34,11 @@ class HRED_SPECIAL_TOKENS(Enum):
     pause: <pause>
     """
 
-    PAD = '[PAD]'
+    PAD = '<PAD>'
     UNK = '<unk>'
     SOS = '<s>'
     EOS = '</s>'
-    d = '</d>'
-    SOU = '[SOU]'
-    EOU = '[EOU]'
-    SOD = '[SOD]'
-    EOD = '[EOD]'
-    SP1 = '<first_speaker>'
-    SP2 = '<second_speaker>'
-    SP3 = '<third_speaker>'
-    SPM = '<minor_speaker>'
-    VOV = '<voice_over>'
-    OFFS = '<off_screen>'
-    PAUSE = '<pause>'
-    CLS = '[CLS]'
+    EOT = '</t>'
 
     @classmethod
     def has_token(cls, token):
