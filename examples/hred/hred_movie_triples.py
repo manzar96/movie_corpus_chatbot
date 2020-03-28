@@ -26,8 +26,7 @@ from slp.data.DailyDialog import DailyDialogDataset
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
 BATCH_TRAIN_SIZE = 32
-BATCH_VAL_SIZE = 60
-
+BATCH_VAL_SIZE = 32
 
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
@@ -47,25 +46,12 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
         [p for p in model.parameters() if p.requires_grad],
         lr=1e-4, weight_decay=1e-6)
 
-    # criterion = SequenceCrossEntropyLoss(pad_index)
-    #
-    # perplexity = Perplexity(pad_index)
-    #
-    # metrics = {
-    #     'loss': Loss(criterion),
-    #     'ppl': Loss(perplexity)}
-    #
-    # trainer = HREDTrainer(model, optimizer,
-    #                       checkpoint_dir=checkpoint_dir, metrics=metrics,
-    #                       non_blocking=True, retain_graph=False,
-    #                       patience=5,
-    #                       device=device, loss_fn=criterion)
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_index, reduction='sum')
 
-    criterion = nn.CrossEntropyLoss(ignore_index=pad_index,reduction='sum')
-
-    trainer = HREDTrainerEpochs(model, optimizer, criterion,patience=5,
-                                    checkpoint_dir=checkpoint_dir,
-                                    device=device)
+    trainer = HREDTrainerEpochs(model, optimizer, criterion, patience=5,
+                                checkpoint_dir=checkpoint_dir,
+                                decreasing_tc=options.decr_tc_ratio,
+                                device=device)
     return trainer
 
 
@@ -83,10 +69,19 @@ if __name__ == '__main__':
     parser.add_argument('-epochs', type=int, help='epochs to train the model',
                         required=True)
 
-    parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
-                        default=256, help='encoder hidden size')
+    # Model options
+    parser.add_argument('-shared', action='store_true',
+                        default=False, help='shared weights between encoder '
+                                            'and decoder')
+    parser.add_argument('-shared_emb', action='store_true',
+                        default=False, help='shared embedding layer')
+
     parser.add_argument('-embdrop', dest='embeddings_dropout', type=float,
                         default=0, help='embeddings dropout')
+
+    parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
+                        default=256, help='encoder hidden size')
+    # Encoder options
     parser.add_argument('-encembtrain', dest='enc_finetune_embeddings',
                         action='store_true', default=False,
                         help='encoder finetune embeddings')
@@ -99,7 +94,7 @@ if __name__ == '__main__':
                         default=0, help='encoder dropout')
     parser.add_argument('-enctype', dest='enc_rnn_type',
                         default='gru', help='bidirectional enc')
-
+    # Context encoder options
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         type=int,
                         default=256, help='context encoder input size')
@@ -117,7 +112,7 @@ if __name__ == '__main__':
                         default=False, help='bidirectional enc')
     parser.add_argument('-contenctype', dest='contenc_rnn_type',
                         default='gru', help='bidirectional enc')
-
+    # Decoder options
     parser.add_argument('-dechidden', dest='dec_hidden_size',
                         type=int,
                         default=256, help='decoder hidden size')
@@ -132,36 +127,28 @@ if __name__ == '__main__':
                         default=False, help='bidirectional decoder')
     parser.add_argument('-decdrop', dest='dec_dropout', type=float,
                         default=0, help='decoder dropout')
-    parser.add_argument('-decmergebi', dest='dec_merge_bi',
-                        action='store_true',
-                        default='cat', help='decoder merge bidirectional '
-                                            'method')
     parser.add_argument('-dectype', dest='dec_rnn_type',
                         default='gru', help='decoder rnn type')
 
-    parser.add_argument('-bf', dest='batch_first', action='store_true',
-                        default=True, help='batch first')
-    parser.add_argument('-tf', dest='teacherforcing_ratio',
-                        action='store_true',
+    # Teacher forcing options
+    parser.add_argument('-tc_ratio', dest='teacherforcing_ratio',
                         default=1., help='teacher forcing ratio')
+    parser.add_argument('-decr_tc_ratio', action='store_true', default=False,
+                        help='decreasing teacherforcing ratio during training and val')
+
     #  -pt should not be activated in this script!!!
+    # Pretraining options
     parser.add_argument('-pt', dest='pretraining',
                         action='store_true',
                         default=False, help='Pretraining model (only encoder'
                                             'decoder)')
 
-    parser.add_argument('-shared', action='store_true',
-                        default=False, help='shared weights between encoder '
-                                            'and decoder')
-    parser.add_argument('-shared_emb', action='store_true',
-                        default=False, help='shared embedding layer')
-
     options = parser.parse_args()
     if options.pretraining is True:
         assert False, "you are using this script to train the whole model! " \
                       "-pt should not be activated!"
-    # ---  read data to create vocabulary dict ---
 
+    # ---  read data to create vocabulary dict ---
     tokenizer = DialogSpacyTokenizer(specials=HRED_SPECIAL_TOKENS)
     dataset_train = MovieTriplesTrain('./data/', transforms=None)
     vocab_dict = dataset_train.create_vocab_dict(tokenizer)

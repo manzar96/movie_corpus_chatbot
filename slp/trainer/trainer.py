@@ -556,8 +556,9 @@ class HREDIterationsTrainer:
 class HREDTrainerEpochs:
 
     def __init__(self, model,
-                 optimizer, criterion,patience, metrics=None, scheduler=None,
-                 checkpoint_dir=None,  clip=None, device='cpu'):
+                 optimizer, criterion, patience, metrics=None, scheduler=None,
+                 checkpoint_dir=None,  clip=None, decreasing_tc=False,
+                 device='cpu'):
 
         self.model = model.to(device)
         self.optimizer = optimizer
@@ -568,6 +569,7 @@ class HREDTrainerEpochs:
         self.clip = clip
         self.device = device
         self.patience = patience
+        self.decreasing_tc = decreasing_tc
 
     def parse_batch(
             self,
@@ -598,8 +600,11 @@ class HREDTrainerEpochs:
 
             val_loss, num_words = 0,0
             for index, batch in enumerate(tqdm(val_loader)):
+                if self.decreasing_tc:
+                    new_tc_ratio = 2100.0 / (2100.0 + math.exp(index/2100.0))
+                    self.model.dec.set_tc_ratio(new_tc_ratio)
 
-                preds,targets = self.get_predictions_and_targets(batch)
+                preds, targets = self.get_predictions_and_targets(batch)
 
 
                 # we want to find the perplexity or likelihood of the provided sequence
@@ -674,7 +679,10 @@ class HREDTrainerEpochs:
             train_epoch_loss, epoch_num_words = 0, 0
             strt = time.time()
 
-            for i_batch, sample_batch in enumerate(tqdm(train_loader)):
+            for index, sample_batch in enumerate(tqdm(train_loader)):
+                if self.decreasing_tc:
+                    new_tc_ratio = 2100.0 / (2100.0 + math.exp(index/2100.0))
+                    self.model.dec.set_tc_ratio(new_tc_ratio)
 
                 loss, targets = self.train_step(sample_batch)
                 # ne() because 0 is the pad idx

@@ -385,6 +385,12 @@ class HREDDecoder(nn.Module):
         dec_output = torch.stack(decoder_outputs).transpose(0, 1).contiguous()
         return dec_output
 
+    def set_tc_ratio(self, num):
+        self.teacher_forcing_ratio = num
+
+    def get_tc_ratio(self):
+        return self.teacher_forcing_ratio
+
     def decode(self, logits):
         """Return probability distribution over words."""
         logits_reshape = logits.view(-1, self.vocab_size)
