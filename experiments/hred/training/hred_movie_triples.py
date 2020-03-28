@@ -19,7 +19,7 @@ from slp.modules.seq2seq.hredseq2seq import HREDSeq2Seq
 from slp.trainer.trainer import HREDTrainer,HREDTrainerEpochs
 
 from slp.data.Semaine import SemaineDatasetTriplesOnly
-from slp.data.movietriples import MovieTriplesTrain
+from slp.data.movietriples import MovieTriplesTrain,MovieTriplesVal
 from slp.data.DailyDialog import DailyDialogDataset
 
 
@@ -197,7 +197,7 @@ if __name__ == '__main__':
         drop_last=True,
         collate_fn=collator_fn)
 
-    dataset_val = MovieTriplesTrain('./data/', transforms=None)
+    dataset_val = MovieTriplesVal('./data/', transforms=None)
     dataset_val = dataset_val.map(tokenizer).map(to_token_ids).map(
         to_tensor)
     val_loader = DataLoader(
