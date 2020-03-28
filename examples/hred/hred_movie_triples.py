@@ -44,7 +44,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     import ipdb;ipdb.set_trace()
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
-        lr=1e-4, weight_decay=1e-6)
+        lr=options.lr, weight_decay=1e-6)
 
     criterion = nn.CrossEntropyLoss(ignore_index=pad_index, reduction='sum')
 
@@ -67,6 +67,8 @@ if __name__ == '__main__':
     parser.add_argument('-emb_dim', type=int, help='Embeddings dimension',
                         required=True)
     parser.add_argument('-epochs', type=int, help='epochs to train the model',
+                        required=True)
+    parser.add_argument('-lr', type=float, default=0.0001, help='learning rate',
                         required=True)
 
     # Model options
