@@ -714,7 +714,6 @@ class HREDTrainerEpochs:
         self.train_epochs(epochs, train_loader, val_loader)
 
 
-
 class HREDTrainerEpochsTest:
 
     def __init__(self, model,

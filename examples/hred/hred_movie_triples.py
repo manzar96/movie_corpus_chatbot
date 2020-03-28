@@ -97,6 +97,8 @@ if __name__ == '__main__':
                         default=False, help='bidirectional enc')
     parser.add_argument('-encdrop', dest='enc_dropout', type=float,
                         default=0, help='encoder dropout')
+    parser.add_argument('-enctype', dest='enc_rnn_type',
+                        default='gru', help='bidirectional enc')
 
     parser.add_argument('-continputsize', dest='contenc_input_size',
                         type=int,
@@ -114,7 +116,6 @@ if __name__ == '__main__':
                         action='store_true',
                         default=False, help='bidirectional enc')
     parser.add_argument('-contenctype', dest='contenc_rnn_type',
-                        action='store_true',
                         default='gru', help='bidirectional enc')
 
     parser.add_argument('-dechidden', dest='dec_hidden_size',
@@ -136,7 +137,6 @@ if __name__ == '__main__':
                         default='cat', help='decoder merge bidirectional '
                                             'method')
     parser.add_argument('-dectype', dest='dec_rnn_type',
-                        action='store_true',
                         default='gru', help='decoder rnn type')
 
     parser.add_argument('-bf', dest='batch_first', action='store_true',
