@@ -623,7 +623,7 @@ class HREDTrainerEpochs:
             return val_loss / num_words
 
     def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
-                    cur_patience, strt):
+                    cur_patience, strt, tc_ratio):
 
         print("Epoch {}:".format(epoch+1))
         print("Training loss: {} ".format(avg_train_epoch_loss))
@@ -631,6 +631,7 @@ class HREDTrainerEpochs:
         print("Validation loss: {} ".format(avg_val_epoch_loss))
         print("Validation ppl: {} ".format(math.exp(avg_val_epoch_loss)))
         print("Patience left: {}".format(self.patience-cur_patience))
+        print("tc ratio", tc_ratio)
         print("Time: {} mins".format((time.time() - strt) / 60.0))
         print("++++++++++++++++++")
 
@@ -714,7 +715,7 @@ class HREDTrainerEpochs:
             else:
                 cur_patience += 1
             self.print_epoch(epoch, avg_train_loss, avg_val_loss,
-                             cur_patience, strt)
+                             cur_patience, strt, self.model.dec.get_tc_ratio())
 
 
 
