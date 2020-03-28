@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     # Teacher forcing options
     parser.add_argument('-tc_ratio', dest='teacherforcing_ratio',
-                        default=1., help='teacher forcing ratio')
+                        default=1., type=float, help='teacher forcing ratio')
     parser.add_argument('-decr_tc_ratio', action='store_true', default=False,
                         help='decreasing teacherforcing ratio during training and val')
 

@@ -315,18 +315,22 @@ class HREDDecoder(nn.Module):
 
         self.tanh = nn.Tanh()
 
-        '''Uncomment if you dont want to use maxout'''
-        self.dec_to_emb2 = nn.Linear(self.hidden_size, self.emb_size*2, False)
-        self.emb_to_emb2 = nn.Linear(self.emb_size, self.emb_size * 2, True)
-        if options.pretraining:
-            self.cont_to_emb2 = nn.Linear(2*options.contenc_hidden_size,
-                                          self.emb_size*2, False)
-        else:
-            self.cont_to_emb2 = nn.Linear(options.contenc_hidden_size,
-                                          self.emb_size*2, False)
-        self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
+        '''Uncomment if you want to use maxout'''
+        # self.dec_to_emb2 = nn.Linear(self.hidden_size, self.emb_size*2, False)
+        # self.emb_to_emb2 = nn.Linear(self.emb_size, self.emb_size * 2, True)
+        # if options.pretraining:
+        #     self.cont_to_emb2 = nn.Linear(2*options.contenc_hidden_size,
+        #                                   self.emb_size*2, False)
+        # else:
+        #     self.cont_to_emb2 = nn.Linear(options.contenc_hidden_size,
+        #                                   self.emb_size*2, False)
+        # self.max_out = Maxout2(self.emb_size*2, self.emb_size, 2)
+        #
+        # self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
 
-        self.embed_out = nn.Linear(self.emb_size, self.vocab_size, False)
+        '''Uncomment if you want to use simple enc dec'''
+        self.embed_out = nn.Linear(self.hidden_size, self.vocab_size, False)
+
 
     def forward(self, dec_input, targets, target_lens, dec_hidden=None,
                 context_encoded=None, enc_output=None):
@@ -382,6 +386,28 @@ class HREDDecoder(nn.Module):
                 else:
                     assert False, "Attention is not implemented"
 
+
+                '''Uncomment if want to use maxout!'''
+                '''SOS!! you should uncomment from init too!'''
+                # ω(dm,n−1, wm,n−1) = Ho dm,n−1 + Eo wm,n−1 + bo   (olo auto se
+                # diastasi emb_size*2
+                # emb_inf_vec = self.emb_to_emb2(input_embed).squeeze(1)
+                # dec_inf_vec = self.dec_to_emb2(dec_out).squeeze(1)
+                # cont_inf_vec = self.cont_to_emb2(context_encoded).squeeze(0)
+                # total_out = dec_inf_vec + cont_inf_vec + emb_inf_vec
+                # total_out = self.max_out(total_out)
+                # out = self.embed_out(total_out)
+                # decoder_outputs.append(out)
+
+                '''Uncomment if want to use simple encdec'''
+                out = self.embed_out(dec_out.squeeze(dim=1))
+                decoder_outputs.append(out)
+
+                dec_out = dec_out.squeeze(1)
+                top_index = F.log_softmax(dec_out, dim=1)
+                _, topi = top_index.topk(1, dim=-1)
+                dec_input = topi.to(self.device)
+
         dec_output = torch.stack(decoder_outputs).transpose(0, 1).contiguous()
         return dec_output
 
@@ -412,7 +438,7 @@ class HREDSeq2Seq(nn.Module):
                            embeddings_dropout=options.embeddings_dropout,
                            finetune_embeddings=options.enc_finetune_embeddings,
                            num_layers=options.enc_num_layers,
-                           batch_first=options.batch_first,
+                           batch_first=True,
                            bidirectional=options.enc_bidirectional,
                            dropout=options.enc_dropout,
                            rnn_type=options.enc_rnn_type,
@@ -421,7 +447,7 @@ class HREDSeq2Seq(nn.Module):
         self.cont_enc = ContextEncoder(input_size=options.contenc_input_size,
                                        hidden_size=options.contenc_hidden_size,
                                        num_layers=options.contenc_num_layers,
-                                       batch_first=options.batch_first,
+                                       batch_first=True,
                                        bidirectional=
                                        options.contenc_bidirectional,
                                        dropout=options.contenc_dropout,
@@ -437,10 +463,9 @@ class HREDSeq2Seq(nn.Module):
                                options.dec_finetune_embeddings,
                                num_layers=options.dec_num_layers,
                                tc_ratio=options.teacherforcing_ratio,
-                               batch_first=options.batch_first,
+                               batch_first=True,
                                bidirectional=options.dec_bidirectional,
                                dropout=options.dec_dropout,
-                               merge_bi=options.dec_merge_bi,
                                rnn_type=options.dec_rnn_type,
                                device=device)
 
@@ -451,7 +476,7 @@ class HREDSeq2Seq(nn.Module):
             self.dec.embed_in = self.enc.embed_in
             self.dec.rnn = self.enc.rnn
 
-        self.batch_first = options.batch_first
+        self.batch_first = True
         self.options = options
         self.sos_index = sos_index
         self.device = device
