@@ -592,6 +592,8 @@ class HREDTrainerEpochs:
         return y_pred, inputs3
 
     def calc_val_loss(self, val_loader):
+        curr_tc = self.model.dec.get_tc_ratio()
+        self.model.dec.set_tc_ratio(1.0)
         self.model.eval()
         with torch.no_grad():
 
@@ -600,16 +602,7 @@ class HREDTrainerEpochs:
 
             val_loss, num_words = 0,0
             for index, batch in enumerate(tqdm(val_loader)):
-                if self.decreasing_tc:
-                    new_tc_ratio = 2100.0 / (2100.0 + math.exp(index/2100.0))
-                    self.model.dec.set_tc_ratio(new_tc_ratio)
-
                 preds, targets = self.get_predictions_and_targets(batch)
-
-
-                # we want to find the perplexity or likelihood of the provided sequence
-
-
                 preds = preds[:, :-1, :].contiguous().view(-1,preds.size(2))
                 targets = targets[:, 1:].contiguous().view(-1)
 
@@ -618,8 +611,7 @@ class HREDTrainerEpochs:
                 num_words += targets.ne(0).long().sum().item()
                 val_loss += loss.item()
 
-            # model.dec.set_teacher_forcing(cur_tc)
-
+            self.model.dec.set_teacher_forcing(curr_tc)
             return val_loss / num_words
 
     def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
@@ -673,6 +665,11 @@ class HREDTrainerEpochs:
 
         print("Training model....")
         self.model.train()
+
+        if self.decreasing_tc:
+            new_tc_ratio = 2100.0 / (2100.0 + math.exp(batch_id / 2100.0))
+            self.model.dec.set_tc_ratio(new_tc_ratio)
+
         for epoch in range(n_epochs):
             if cur_patience == self.patience:
                 break
@@ -682,7 +679,7 @@ class HREDTrainerEpochs:
 
             for index, sample_batch in enumerate(tqdm(train_loader)):
                 if self.decreasing_tc:
-                    new_tc_ratio = 2100.0 / (2100.0 + math.exp(index/2100.0))
+                    new_tc_ratio = 2100.0 / (2100.0 + math.exp(batch_id / 2100.0))
                     self.model.dec.set_tc_ratio(new_tc_ratio)
 
                 loss, targets = self.train_step(sample_batch)
