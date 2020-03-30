@@ -611,7 +611,7 @@ class HREDTrainerEpochs:
                 num_words += targets.ne(0).long().sum().item()
                 val_loss += loss.item()
 
-            self.model.dec.set_teacher_forcing(curr_tc)
+            self.model.dec.set_tc_ratio(curr_tc)
             return val_loss / num_words
 
     def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
