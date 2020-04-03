@@ -75,46 +75,6 @@ class WordpieceTokenizer(object):
         return self.tokenizer.convert_tokens_to_ids(x)
 
 
-class DialogSpacyTokenizer(object):
-
-    def __init__(self,
-                 lower=True,
-                 prepend_cls=False,
-                 prepend_sos=False,
-                 append_eos=False,
-                 specials=SPECIAL_TOKENS,
-                 lang='en_core_web_sm'):
-        self.lower = lower
-        self.specials = specials
-        self.lang = lang
-        self.pre_id = []
-        self.post_id = []
-        if prepend_cls and prepend_sos:
-            raise ValueError("prepend_sos and prepend_cls are"
-                             " mutually exclusive")
-        if prepend_cls:
-            self.pre_id.append(self.specials.CLS.value)
-        if prepend_sos:
-            self.pre_id.append(self.specials.SOS.value)
-        if append_eos:
-            self.post_id.append(self.specials.EOS.value)
-        self.nlp = self.get_nlp(name=lang, specials=specials)
-
-    def get_nlp(self, name="en_core_web_sm", specials=SPECIAL_TOKENS):
-        nlp = spacy.load(name)
-        for control_token in map(lambda x: x.value, specials):
-            nlp.tokenizer.add_special_case(
-                control_token, [{ORTH: control_token}])
-        return nlp
-
-    def __call__(self, x):
-        if self.lower:
-            x = x.lower()
-        x = (self.pre_id +
-             [y.text for y in self.nlp.tokenizer(x)] +
-             self.post_id)
-        return x
-
 class SpacyTokenizer(object):
     def __init__(self,
                  lower=True,
