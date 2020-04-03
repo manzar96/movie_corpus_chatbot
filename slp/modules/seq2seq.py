@@ -27,6 +27,11 @@ class EncoderLSTM(nn.Module):
         self.embedding = embedding
         self.vocab_size, self.input_size = embedding.num_embeddings, \
                                            embedding.embedding_dim
+
+        if not self.emb_train:
+            for param in self.embedding.parameters():
+                if param.requires_grad:
+                    param.requires_grad = False
         if rnn_type == 'lstm':
             self.encoder = nn.LSTM(input_size=self.input_size,
                                    hidden_size=self.hidden_size,

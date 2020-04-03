@@ -96,9 +96,9 @@ class MovieCorpusDataset(Dataset):
 
 class MovieCorpusDatasetv2(Dataset):
     def __init__(self, directory, transforms=None):
-        # dest = download_url(MOVIECORPUS_URL, directory)
-        # with ZipFile(dest, 'r') as zipfd:
-        #    zipfd.extractall(directory)
+        dest = download_url(MOVIECORPUS_URL, directory)
+        with ZipFile(dest, 'r') as zipfd:
+           zipfd.extractall(directory)
 
         self.transforms = transforms
         new_dir = os.path.join(directory, 'cornell movie-dialogs corpus')

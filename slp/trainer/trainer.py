@@ -21,7 +21,7 @@ from slp.util import from_checkpoint, to_device
 from slp.util import log
 from slp.util import system
 
-from slp.util.plot_grads import plot_grad_flow
+#from slp.util.plot_grads import plot_grad_flow
 
 TrainerType = TypeVar('TrainerType', bound='Trainer')
 
@@ -404,7 +404,7 @@ class Seq2SeqTrainer(Trainer):
             loss = loss.mean()
         loss = loss / self.accumulation_steps
         loss.backward(retain_graph=self.retain_graph)
-        plot_grad_flow(self.model.named_parameters())
+        #plot_grad_flow(self.model.named_parameters())
         # Clip the gradient if necessary.
         if self.clip is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clip)
