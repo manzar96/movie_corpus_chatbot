@@ -198,9 +198,6 @@ class MovieCorpusDatasetv2(Dataset):
         pairs = [[s for s in l.split('\t')] for l in lines]
         return pairs
 
-
-        return s
-
     def normalize_data(self):
         norm_pairs = [[self.normalizeString(pair[0]),self.normalizeString(
             pair[1])] for pair in self.pairs]
@@ -303,18 +300,6 @@ class MovieCorpusDatasetv2(Dataset):
 
 
 if __name__ == '__main__':
-    # from slp.util.embeddings import EmbeddingsLoader
-    # from torchvision.transforms import Compose
-    # loader = EmbeddingsLoader(
-    #     './cache/glove.6B.50d.txt', 50)
-    # word2idx, idx2word, embeddings = loader.load()
-    #
-    # transforms = Compose([SpacyTokenizer(), ToTokenIds(word2idx)])
-    # data = MovieCorpusDataset('./data/', transforms=transforms)
-    #
-    # print(len(data))
-    # data.filter_data(2, 13)
-    # print(len(data))
 
     data2 = MovieCorpusDatasetv2('./data', transforms=None)
     data2.normalize_data()

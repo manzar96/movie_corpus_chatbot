@@ -2,32 +2,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-import warnings
-warnings.filterwarnings("ignore")
+from torch.utils.data import DataLoader, SubsetRandomSampler
+from slp.data.transforms import SpacyTokenizer
+from slp.data.collators import Seq2SeqCollator
+from slp.modules.loss import SequenceCrossEntropyLoss
+from slp.modules.seq2seq import EncoderLSTM, DecoderLSTMv2
 import numpy as np
 import torch
-import collections
-import os
+import warnings
 
-from ignite.metrics import Loss
-from torch.utils.data import DataLoader, SubsetRandomSampler
-from torchvision.transforms import Compose
-
-from slp.util.embeddings import EmbeddingsLoader
-from slp.data.moviecorpus import MovieCorpusDataset
-from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
-from slp.data.collators import Seq2SeqCollator
-from slp.trainer.trainer import Seq2SeqTrainer
-from slp.config.moviecorpus import SPECIAL_TOKENS
-from slp.modules.loss import SequenceCrossEntropyLoss
-from slp.modules.seq2seq import EncoderDecoder, EncoderLSTM, DecoderLSTMv2
-
-from slp.trainer.seq2seqtrainer import train_epochs
-
-from torch.optim import Adam
-
-
-
+warnings.filterwarnings("ignore")
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 COLLATE_FN = Seq2SeqCollator(device='cpu')
@@ -118,7 +102,6 @@ def train_test_split(dataset, batch_train, batch_val,
 
 
 import torch
-from torch.jit import script, trace
 import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
@@ -130,7 +113,6 @@ import unicodedata
 import codecs
 from io import open
 import itertools
-import math
 
 def printLines(file, n=10):
     with open(file, 'rb') as datafile:
@@ -677,42 +659,19 @@ def evaluateInput(searcher, voc):
 # Configure models
 model_name = 'cb_model'
 attn_model = 'dot'
-#attn_model = 'general'
-#attn_model = 'concat'
 hidden_size = 500
 encoder_n_layers = 1
 decoder_n_layers = 1
 dropout = 0.2
 batch_size = 64
 
-# Set checkpoint to load from; set to None if starting from scratch
 loadFilename = None
 checkpoint_iter = 4000
-#loadFilename = os.path.join(save_dir, model_name, corpus_name,
-#                            '{}-{}_{}'.format(encoder_n_layers, decoder_n_layers, hidden_size),
-#                            '{}_checkpoint.tar'.format(checkpoint_iter))
-
-
-# # Load model if a loadFilename is provided
-# if loadFilename:
-#     # If loading on same machine the model was trained on
-#     checkpoint = torch.load(loadFilename)
-#     # If loading a model trained on GPU to CPU
-#     #checkpoint = torch.load(loadFilename, map_location=torch.device('cpu'))
-#     encoder_sd = checkpoint['en']
-#     decoder_sd = checkpoint['de']
-#     encoder_optimizer_sd = checkpoint['en_opt']
-#     decoder_optimizer_sd = checkpoint['de_opt']
-#     embedding_sd = checkpoint['embedding']
-#     voc.__dict__ = checkpoint['voc_dict']
 
 
 print('Building encoder and decoder ...')
 # Initialize word embeddings
 embedding = nn.Embedding(voc.num_words, hidden_size)
-# if loadFilename:
-#     embedding.load_state_dict(embedding_sd)
-# Initialize encoder & decoder models
 
 encoder = EncoderLSTM(embedding,weights_matrix=None,hidden_size=hidden_size,
                       num_layers=encoder_n_layers,dropout=dropout,
@@ -725,10 +684,6 @@ decoder = DecoderLSTMv2(embedding,weights_matrix=None,
                         bidirectional=False,batch_first=True,rnn_type='gru',
                         device=device)
 
-# if loadFilename:
-#     encoder.load_state_dict(encoder_sd)
-#     decoder.load_state_dict(decoder_sd)
-# Use appropriate device
 encoder = encoder.to(device)
 decoder = decoder.to(device)
 print('Models built and ready to go!')
