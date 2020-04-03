@@ -257,10 +257,12 @@ class Decoder(nn.Module):
 
 
 class Seq2Seq(nn.Module):
-    def __init__(self, encoder, decoder,sos_index,device):
+    def __init__(self, encoder, decoder,sos_index,device,shared_emb=False):
         super(Seq2Seq, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        if shared_emb:
+            self.encoder.embed_in = self.decoder.embed_in
         self.sos_index = sos_index
         self.device = device
 
