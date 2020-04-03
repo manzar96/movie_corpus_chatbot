@@ -19,7 +19,7 @@ from slp.data.collators import Seq2SeqCollator
 from slp.trainer.trainer import Seq2SeqTrainer
 from slp.config.moviecorpus import SPECIAL_TOKENS
 from slp.modules.loss import SequenceCrossEntropyLoss
-from slp.modules.seq2seq_for_moviecorpus import EncoderLSTM, DecoderLSTMv2,  \
+from slp.modules.seq2seq_moviecorpus_tutorial import EncoderLSTM, DecoderLSTMv2,  \
     EncoderDecoder_SeqCrossEntropy
 
 

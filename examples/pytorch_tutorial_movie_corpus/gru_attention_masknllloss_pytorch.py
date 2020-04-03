@@ -20,7 +20,7 @@ from slp.data.collators import Seq2SeqCollator
 from slp.trainer.trainer import Seq2SeqTrainer
 from slp.config.moviecorpus import SPECIAL_TOKENS
 from slp.modules.loss import SequenceCrossEntropyLoss
-from slp.modules.seq2seq_for_moviecorpus import EncoderDecoder, EncoderLSTM, DecoderLSTMv2
+from slp.modules.seq2seq_moviecorpus_tutorial import EncoderDecoder, EncoderLSTM, DecoderLSTMv2
 
 from slp.trainer.seq2seqtrainer import train_epochs
 
@@ -847,15 +847,5 @@ trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_
            embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size,
            print_every, save_every, clip, corpus_name, loadFilename)
 
-# Set dropout layers to eval mode
-encoder.eval()
-decoder.eval()
 
-
-# Initialize search module
-searcher = GreedySearchDecoder(encoder, decoder)
-
-# Begin chatting (uncomment and run the following line to begin)
-evaluateInput(searcher, voc)
-
-print("end chatbot")
+print("Training done")
