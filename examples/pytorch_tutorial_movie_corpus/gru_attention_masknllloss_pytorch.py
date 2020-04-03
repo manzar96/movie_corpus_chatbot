@@ -14,12 +14,12 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision.transforms import Compose
 
 from slp.util.embeddings import EmbeddingsLoader
-from slp.data.moviecorpus import MovieCorpusDataset
+from slp.data.moviecorpus_tut import MovieCorpusDataset
 from slp.data.transforms import SpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.collators import Seq2SeqCollator
 from slp.trainer.trainer import Seq2SeqTrainer
 from slp.config.moviecorpus import SPECIAL_TOKENS
-from slp.modules.loss import SequenceCrossEntropyLoss
+from slp.modules.loss_tut import SequenceCrossEntropyLoss
 from slp.modules.seq2seq_moviecorpus_tutorial import EncoderDecoder, EncoderLSTM, DecoderLSTMv2
 
 from slp.trainer.seq2seqtrainer import train_epochs
