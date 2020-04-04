@@ -7,7 +7,7 @@ from slp.modules.attention import LuongAttn
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_size, vocab_size, hidden_size, embedding=None,
+    def __init__(self, input_size, vocab_size, hidden_size, embeddings=None,
                  embeddings_dropout=.1,
                  finetune_embeddings=False, num_layers=1, batch_first=True,
                  bidirectional=False, dropout=0, rnn_type='gru', merge_bi='sum',
@@ -16,7 +16,7 @@ class Encoder(nn.Module):
         self.vocab_size = vocab_size
         self.emb_size = input_size
         self.hidden_size = hidden_size
-        self.embeddings = embedding
+        self.embeddings = embeddings
         self.embeddings_dropout = embeddings_dropout
         self.finetune_embeddings = finetune_embeddings
         self.num_layers = num_layers
@@ -67,12 +67,12 @@ class Encoder(nn.Module):
                                                   batch_first=True,
                                                   enforce_sorted=False)
         out_packed, hidden = self.rnn(x_emb)
-        out, out_lengths = nn.utils.rnn.pad_packed_sequence(out_packed,
+        enc_out, out_lengths = nn.utils.rnn.pad_packed_sequence(out_packed,
                                                            batch_first=True)
 
         if self.bidirectional:
-            enc_out = out[:, :, :self.hidden_size] + \
-                         out[:, :, self.hidden_size:]
+            enc_out = enc_out[:, :, :self.hidden_size] + \
+                         enc_out[:, :, self.hidden_size:]
 
         return enc_out, hidden
 
@@ -214,9 +214,8 @@ class Decoder(nn.Module):
         for i in range(0, max_seq_len):
             use_teacher_forcing = True if (
                     random.random() < self.teacher_forcing_ratio) else False
-
             input_embed = self.embed_in(dec_input)
-            if self.attention is None:
+            if not self.attention:
                 dec_out, dec_hidden = self.rnn(input_embed, hx=dec_hidden)
                 out = dec_out
             else:
@@ -267,16 +266,16 @@ class Seq2Seq(nn.Module):
         self.device = device
 
     def forward(self, inputs, input_lengths, target, target_lengths):
-        encoutput, hidden = self.encoder(inputs)
+        encoutput, hidden = self.encoder(inputs,input_lengths)
         #last_hidden = self.encoder.get_last_layer_hidden(hidden)
 
-        dec_init_hidden = hidden.view(self.decoder.num_layers, target.shape[0],
-                                               self.dec.hidden_size)
+        dec_init_hidden = hidden.view(self.decoder.num_layers, target.shape[
+            0], self.decoder.hidden_size)
         decoder_input = torch.tensor([self.sos_index for _ in range(
             target.shape[0])]).long().unsqueeze(dim=1)
         decoder_input = decoder_input.to(self.device)
 
-        if self.decoder.attention is None:
+        if not self.decoder.attention:
             dec_out = self.decoder(decoder_input, target,
                                    dec_hidden=dec_init_hidden)
         else:
