@@ -8,6 +8,8 @@ from tqdm import tqdm
 from typing import cast, List, Optional, Tuple, TypeVar
 from slp.util import from_checkpoint, to_device
 from slp.util import types
+import random
+
 TrainerType = TypeVar('TrainerType', bound='Trainer')
 
 def train(train_batches, model, model_optimizer, criterion, clip=None):
@@ -363,7 +365,6 @@ class Seq2SeqTrainerEpochs:
         self.train_epochs(epochs, train_loader, val_loader)
 
 
-import random
 class Seq2SeqIterationsTrainer:
     def __init__(self, model,
                  optimizer, criterion, metrics=None, scheduler=None,
