@@ -240,8 +240,8 @@ class Seq2SeqTrainerEpochs:
         return y_pred, inputs2
 
     def calc_val_loss(self, val_loader):
-        curr_tc = self.model.dec.get_tc_ratio()
-        self.model.dec.set_tc_ratio(1.0)
+        curr_tc = self.model.decoder.get_tc_ratio()
+        self.model.decoder.set_tc_ratio(1.0)
         self.model.eval()
         with torch.no_grad():
 
@@ -259,7 +259,7 @@ class Seq2SeqTrainerEpochs:
                 num_words += targets.ne(0).long().sum().item()
                 val_loss += loss.item()
 
-            self.model.dec.set_tc_ratio(curr_tc)
+            self.model.decoder.set_tc_ratio(curr_tc)
             return val_loss / num_words
 
     def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
@@ -312,7 +312,7 @@ class Seq2SeqTrainerEpochs:
 
         if self.decreasing_tc:
             new_tc_ratio = 2100.0 / (2100.0 + math.exp(batch_id / 2100.0))
-            self.model.dec.set_tc_ratio(new_tc_ratio)
+            self.model.decoder.set_tc_ratio(new_tc_ratio)
 
         for epoch in range(n_epochs):
             if cur_patience == self.patience:
@@ -324,7 +324,7 @@ class Seq2SeqTrainerEpochs:
             for index, sample_batch in enumerate(tqdm(train_loader)):
                 if self.decreasing_tc:
                     new_tc_ratio = 2100.0 / (2100.0 + math.exp(batch_id / 2100.0))
-                    self.model.dec.set_tc_ratio(new_tc_ratio)
+                    self.model.decoder.set_tc_ratio(new_tc_ratio)
 
                 loss, targets = self.train_step(sample_batch)
                 # ne() because 0 is the pad idx
@@ -356,7 +356,169 @@ class Seq2SeqTrainerEpochs:
             else:
                 cur_patience += 1
             self.print_epoch(epoch, avg_train_loss, avg_val_loss,
-                             cur_patience, strt, self.model.dec.get_tc_ratio())
+                             cur_patience, strt,
+                             self.model.decoder.get_tc_ratio())
 
     def fit(self, train_loader, val_loader, epochs):
         self.train_epochs(epochs, train_loader, val_loader)
+
+
+import random
+class Seq2SeqIterationsTrainer:
+    def __init__(self, model,
+                 optimizer, criterion, metrics=None, scheduler=None,
+                 checkpoint_dir=None, save_every=1000, validate_every=10,
+                 print_every=200, clip=None, device='cpu'):
+
+        self.model = model.to(device)
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.metrics = metrics
+        self.scheduler = scheduler
+        self.checkpoint_dir = checkpoint_dir
+        self.save_every = save_every
+        self.validate_every = validate_every
+        self.print_every = print_every
+        self.clip = clip
+        self.device = device
+
+    def parse_batch(
+            self,
+            batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+        inputs1 = to_device(batch[0], device=self.device)
+        lengths1 = to_device(batch[1], device=self.device)
+        inputs2 = to_device(batch[2], device=self.device)
+        lengths2 = to_device(batch[3], device=self.device)
+
+        return inputs1, lengths1, inputs2, lengths2
+
+    def get_predictions_and_targets(
+            self: TrainerType,
+            batch: List[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+        inputs1, lengths1, inputs2, lengths2 = self.parse_batch(batch)
+        y_pred = self.model(inputs1, lengths1, inputs2, lengths2)
+        return y_pred,inputs2
+
+    def train_step(self, batch):
+        self.model.train()
+        self.optimizer.zero_grad()
+
+        outputs, targets = self.get_predictions_and_targets(batch)
+        loss = self.criterion(outputs, targets)
+
+        metrics_res = []
+        if self.metrics is not None:
+            for metric in self.metrics:
+                metrics_res.append(metric(outputs, targets).item())
+
+        # Perform backpropagation
+        loss.backward()
+
+        # Clip gradients: gradients are modified in place
+        if self.clip is not None:
+            _ = torch.nn.utils.clip_grad_norm_(self.model.parameters(),
+                                               self.clip)
+
+        # Adjust model weights
+        self.optimizer.step()
+
+        return loss.item(), metrics_res
+
+    def eval_step(self, batch):
+        self.model.eval()
+        with torch.no_grad():
+            outputs, targets = self.get_predictions_and_targets(batch)
+        loss = self.criterion(outputs, targets)
+
+        metrics_res = []
+        if self.metrics is not None:
+            for metric in self.metrics:
+                metrics_res.append(metric(outputs, targets).item())
+
+        return loss.item(), metrics_res
+
+    def print_iter(self, print_loss, print_ppl, iteration, n_iterations):
+        print_loss_avg = print_loss / self.print_every
+        print_ppl_avg = print_ppl / self.print_every
+        print("Training results")
+        print(
+            "Iteration: {}; Percent complete: {:.1f}%; Average train loss: {"
+            ":.4f}".format(
+                iteration, iteration / n_iterations * 100, print_loss_avg))
+        print(
+            "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
+                iteration, iteration / n_iterations * 100, print_ppl_avg))
+        print("++++++++++++++++++")
+
+    def print_iter_val(self, print_loss, print_ppl, iteration, n_iterations):
+        print_loss_avg = print_loss / self.print_every
+        print_ppl_avg = print_ppl / self.print_every
+        print("Validation results")
+        print(
+            "Iteration: {}; Percent complete: {:.1f}%; Average  loss: {"
+            ":.4f}".format(
+                iteration, iteration / n_iterations * 100, print_loss_avg))
+        print(
+            "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
+                iteration, iteration / n_iterations * 100, print_ppl_avg))
+        print("==============================================================")
+
+    def save_iter(self, iteration, loss):
+
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
+        torch.save(self.model.state_dict(), os.path.join(
+            self.checkpoint_dir, '{}_{}.pth'.format(iteration, 'checkpoint')))
+
+    def train_Iterations(self, n_iterations, train_loader, val_loader):
+        all_mini_batches_train = [batch for _, batch in enumerate(train_loader)]
+        selected_batches_train = [random.choice(all_mini_batches_train) for _
+                                  in range(n_iterations)]
+
+        all_mini_batches_val = [batch for _, batch in enumerate(val_loader)]
+        selected_batches_val = [random.choice(all_mini_batches_val) for _ in
+                                range(n_iterations)]
+
+        start_iter = 1
+        train_print_loss = 0
+        train_print_ppl = 0
+        val_print_loss = 0
+        val_print_ppl = 0
+
+        print("Training model....")
+        for iteration in range(start_iter, n_iterations + 1):
+
+            # train step
+            mini_batch = selected_batches_train[iteration - 1]
+            loss, metrics_res = self.train_step(mini_batch)
+
+            train_print_loss += loss
+            #train_print_ppl += metrics_res[0]
+            train_print_ppl=0
+
+            # eval step
+            mini_batch = selected_batches_val[iteration-1]
+            loss_val, metrics_res = self.eval_step(mini_batch)
+            val_print_loss += loss_val
+            #val_print_ppl += metrics_res[0]
+            val_print_ppl=0
+
+            # Print progress
+            if iteration % self.print_every == 0:
+                self.print_iter(train_print_loss, train_print_ppl, iteration,
+                                n_iterations)
+                train_print_loss = 0
+                train_print_ppl = 0
+
+                self.print_iter_val(val_print_loss, val_print_ppl,
+                                    iteration, n_iterations)
+                val_print_loss = 0
+                val_print_ppl = 0
+
+            # Save checkpoint
+            if self.checkpoint_dir is not None:
+                if iteration % self.save_every == 0:
+                    self.save_iter(iteration, loss)
+
+    def fit(self, train_loader, val_loader, n_iters):
+        self.train_Iterations(n_iters, train_loader, val_loader)
