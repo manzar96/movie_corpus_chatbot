@@ -367,8 +367,8 @@ import random
 class Seq2SeqIterationsTrainer:
     def __init__(self, model,
                  optimizer, criterion, metrics=None, scheduler=None,
-                 checkpoint_dir=None, save_every=1000, validate_every=10,
-                 print_every=200, clip=None, device='cpu'):
+                 checkpoint_dir=None,  validate_every=400,
+                 print_every=100,patience=3, clip=None, device='cpu'):
 
         self.model = model.to(device)
         self.optimizer = optimizer
@@ -376,10 +376,10 @@ class Seq2SeqIterationsTrainer:
         self.metrics = metrics
         self.scheduler = scheduler
         self.checkpoint_dir = checkpoint_dir
-        self.save_every = save_every
         self.validate_every = validate_every
         self.print_every = print_every
         self.clip = clip
+        self.patience = patience
         self.device = device
 
     def parse_batch(
@@ -448,7 +448,6 @@ class Seq2SeqIterationsTrainer:
         print(
             "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
                 iteration, iteration / n_iterations * 100, print_ppl_avg))
-        print("++++++++++++++++++")
 
     def print_iter_val(self, print_loss, print_ppl, iteration, n_iterations):
         print_loss_avg = print_loss / self.print_every
@@ -484,27 +483,35 @@ class Seq2SeqIterationsTrainer:
         train_print_ppl = 0
         val_print_loss = 0
         val_print_ppl = 0
+        val_ppl=0
+        best_val_ppl, cur_patience = 10000, 0
 
         print("Training model....")
         for iteration in range(start_iter, n_iterations + 1):
+
+            if cur_patience == self.patience:
+                print("Breaking for 0 patience...")
+                break
 
             # train step
             mini_batch = selected_batches_train[iteration - 1]
             loss, metrics_res = self.train_step(mini_batch)
 
             train_print_loss += loss
-            #train_print_ppl += metrics_res[0]
-            train_print_ppl=0
+            train_print_ppl += metrics_res[0]
+
 
             # eval step
             mini_batch = selected_batches_val[iteration-1]
             loss_val, metrics_res = self.eval_step(mini_batch)
             val_print_loss += loss_val
-            #val_print_ppl += metrics_res[0]
-            val_print_ppl=0
+            val_print_ppl += metrics_res[0]
+            val_ppl += metrics_res[0]
+
 
             # Print progress
             if iteration % self.print_every == 0:
+
                 self.print_iter(train_print_loss, train_print_ppl, iteration,
                                 n_iterations)
                 train_print_loss = 0
@@ -515,10 +522,22 @@ class Seq2SeqIterationsTrainer:
                 val_print_loss = 0
                 val_print_ppl = 0
 
-            # Save checkpoint
+            # Checkpointing and early stopping
             if self.checkpoint_dir is not None:
-                if iteration % self.save_every == 0:
-                    self.save_iter(iteration, loss)
+                if iteration % self.validate_every == 0:
+                    avg_val_ppl = val_ppl / self.validate_every
+                    print("++++++++++++++++++++++++++")
+                    print("Average val ppl: ",avg_val_ppl)
+                    print("Best val ppl: ",best_val_ppl)
+                    if avg_val_ppl < best_val_ppl:
+                        self.save_iter(iteration, loss)
+                        best_val_ppl=avg_val_ppl
+                        cur_patience = 0
+                    else:
+                        cur_patience += 1
+                    print("Patience is ",self.patience-cur_patience)
+                    print("++++++++++++++++++++++++++")
+                    val_ppl = 0
 
     def fit(self, train_loader, val_loader, n_iters):
         self.train_Iterations(n_iters, train_loader, val_loader)
