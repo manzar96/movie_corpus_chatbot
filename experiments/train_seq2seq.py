@@ -10,7 +10,11 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.DailyDialog import DailyDialogDatasetTuples
-
+from slp.data.collators import Seq2SeqCollator
+from torch.optim import Adam
+#from slp.modules.loss import SequenceCrossEntropyLoss
+from slp.trainer.seq2seqtrainer import Seq2SeqTrainerEpochs
+from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
@@ -42,6 +46,45 @@ def print_model_info(checkpoint_dir,dataset,vocab_size,options):
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                     sos_index, checkpoint_dir=None, device=DEVICE):
 
+    encoder = Encoder(input_size=emb_dim, vocab_size=vocab_size,
+                      hidden_size=options.enc_hidden_size,
+                      embeddings=embeddings,
+                      embeddings_dropout=options.embeddings_dropout,
+                      finetune_embeddings=options.enc_finetune_embeddings,
+                      num_layers=options.enc_num_layers,
+                      bidirectional=options.enc_bidirectional,
+                      dropout=options.enc_dropout,
+                      rnn_type=options.enc_rnn_type,
+                      device=DEVICE)
+    decoder = Decoder(emb_size=emb_dim, vocab_size=vocab_size,
+                      hidden_size=options.dec_hidden_size,
+                      embeddings=embeddings,
+                      embeddings_dropout=options.embeddings_dropout,
+                      finetune_embeddings=options.dec_finetune_embeddings,
+                      num_layers=options.dec_num_layers,
+                      bidirectional=options.dec_bidirectional,
+                      dropout=options.dec_dropout,
+                      rnn_type=options.dec_rnn_type,
+                      device=DEVICE)
+
+    model = Seq2Seq(encoder, decoder, sos_index, device,
+                    shared_emb=options.shared_emb)
+
+    numparams = sum([p.numel() for p in model.parameters()])
+    train_numparams = sum([p.numel() for p in model.parameters() if
+                       p.requires_grad])
+    print('Total Parameters: {}'.format(numparams))
+    print('Trainable Parameters: {}'.format(train_numparams))
+    optimizer = Adam(
+        [p for p in model.parameters() if p.requires_grad],
+        lr=options.lr, weight_decay=1e-6)
+
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_index,reduction='sum')
+
+    trainer = Seq2SeqTrainerEpochs(model, optimizer, criterion, patience=5,
+                                checkpoint_dir=checkpoint_dir,
+                                decreasing_tc=options.decr_tc_ratio,
+                                device=device)
     return trainer
 
 
@@ -154,7 +197,7 @@ if __name__ == '__main__':
     vocab_size = len(word2idx)
 
     # --- set dataset transforms ---
-    tokenizer = DialogSpacyTokenizer(lower=True, prepend_sos=True,
+    tokenizer = DialogSpacyTokenizer(lower=True,
                                      append_eos=True,
                                      specials=DIALOG_SPECIAL_TOKENS)
     to_token_ids = ToTokenIds(word2idx, specials=DIALOG_SPECIAL_TOKENS)
@@ -180,13 +223,12 @@ if __name__ == '__main__':
     print("eos index {}".format(eos_index))
     print("pad index {}".format(pad_index))
     print("unk index {}".format(unk_index))
-    print_model_info(options.ckpt,dataset,vocab_size,options)
 
     # --- make model and train it ---
     checkpoint_dir = options.ckpt
-
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
+    print_model_info(options.ckpt, dataset, vocab_size, options)
     if options.embeddings is None:
         with open(os.path.join(checkpoint_dir, 'word2idx.pickle'), 'wb') as \
                 file1:
