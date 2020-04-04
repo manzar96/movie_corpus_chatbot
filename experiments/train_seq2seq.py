@@ -10,10 +10,11 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.DailyDialog import DailyDialogDatasetTuples
+from slp.data.moviecorpus import MovieCorpusDatasetTuples
 from slp.data.collators import Seq2SeqCollator
 from torch.optim import Adam
-#from slp.modules.loss import SequenceCrossEntropyLoss
-from slp.trainer.seq2seqtrainer import Seq2SeqTrainerEpochs
+from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
+from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
 from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -79,12 +80,13 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
         [p for p in model.parameters() if p.requires_grad],
         lr=options.lr, weight_decay=1e-6)
 
-    criterion = nn.CrossEntropyLoss(ignore_index=pad_index,reduction='sum')
-
-    trainer = Seq2SeqTrainerEpochs(model, optimizer, criterion, patience=5,
-                                checkpoint_dir=checkpoint_dir,
-                                decreasing_tc=options.decr_tc_ratio,
-                                device=device)
+    criterion = SequenceCrossEntropyLoss(pad_index)
+    perplexity = Perplexity(pad_index)
+    metrics = [perplexity]
+    trainer = Seq2SeqIterationsTrainer(model, optimizer, criterion,
+                                       metrics=metrics, clip=50,
+                                       checkpoint_dir=checkpoint_dir,
+                                       device=device)
     return trainer
 
 
@@ -99,7 +101,7 @@ if __name__ == '__main__':
                         help='Preprocess dataset used')
 
     # epochs to run and checkpoint to save model
-    parser.add_argument('-epochs', type=int, help='epochs to train the model',
+    parser.add_argument('-iters', type=int, help='iters to train the model',
                         required=True)
     parser.add_argument('-ckpt', type=str, help='Model checkpoint',
                         required=True)
@@ -152,7 +154,7 @@ if __name__ == '__main__':
 
     # Teacher forcing options
     parser.add_argument('-tc_ratio', dest='teacherforcing_ratio',
-                        default=1., type=float, help='teacher forcing ratio')
+                        default=0.8, type=float, help='teacher forcing ratio')
     parser.add_argument('-decr_tc_ratio', action='store_true', default=False,
                         help='decreasing teacherforcing ratio during training and val')
 
@@ -166,12 +168,14 @@ if __name__ == '__main__':
     if options.dataset == "dailydialog":
         dataset = DailyDialogDatasetTuples('./data/ijcnlp_dailydialog',
                                            transforms=None)
+    elif options.dataset == "moviecorpus":
+        dataset = MovieCorpusDatasetTuples('./data', transforms=None)
     else:
         raise NameError
 
     dataset.normalize_data()
     if options.preprocess:
-        dataset.threshold_data(30, tokenizer=tokenizer)
+        dataset.threshold_data(15, tokenizer=tokenizer)
         dataset.trim_words(3, tokenizer=tokenizer)
     vocab_dict = dataset.create_vocab_dict(tokenizer)
 
@@ -241,5 +245,5 @@ if __name__ == '__main__':
                               pad_index, sos_index, checkpoint_dir,
                               device=DEVICE)
 
-    trainer.fit(train_loader, val_loader, epochs=options.epochs)
+    trainer.fit(train_loader, val_loader, n_iters=options.iters)
     print("data stored in: {}\n".format(checkpoint_dir))
