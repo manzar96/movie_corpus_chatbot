@@ -268,9 +268,11 @@ class Seq2Seq(nn.Module):
     def forward(self, inputs, input_lengths, target, target_lengths):
         encoutput, hidden = self.encoder(inputs,input_lengths)
         #last_hidden = self.encoder.get_last_layer_hidden(hidden)
+        dec_init_hidden = hidden[:self.decoder.num_layers]
 
-        dec_init_hidden = hidden.view(self.decoder.num_layers, target.shape[
-            0], self.decoder.hidden_size)
+        # dec_init_hidden = last_hidden.view(self.decoder.num_layers,
+        #                                    target.shape[0],self.decoder.hidden_size)
+
         decoder_input = torch.tensor([self.sos_index for _ in range(
             target.shape[0])]).long().unsqueeze(dim=1)
         decoder_input = decoder_input.to(self.device)
