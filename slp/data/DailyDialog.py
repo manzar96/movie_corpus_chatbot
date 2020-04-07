@@ -507,6 +507,20 @@ class DailyDialogDatasetEmoTuples(Dataset):
         return s1, s2, tensor_conv(int(emo1)), tensor_conv(int(emo2))
 
 
+from slp.data.transforms import DialogSpacyTokenizer
+from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
+from slp.data.utils import make_train_val_test_pickles
+import pickle
 if __name__ == '__main__':
     dataset = DailyDialogDatasetEmoTuples('./data/ijcnlp_dailydialog', transforms=None)
     print(dataset[0])
+    tokenizer = DialogSpacyTokenizer(lower=True,
+                                     specials=DIALOG_SPECIAL_TOKENS)
+    dataset.threshold_data(15, tokenizer=tokenizer)
+    dataset.trim_words(3, tokenizer=tokenizer)
+
+    # make_train_val_test_pickles('./data/dialogpickles', dataset,
+    #                             val_size=0.2, test_size=0.1)
+    #
+    # with open('./data/dialogpickles/test_set.pkl','rb') as handle:
+    #     test_dataset = pickle.load(handle)
