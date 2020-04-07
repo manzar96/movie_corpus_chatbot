@@ -3,24 +3,28 @@ import torch
 import torch.nn as nn
 import argparse
 import pickle
-
-from slp.data.utils import train_test_split
+import sys
+from torch.utils.data import DataLoader
 from slp.data.vocab import word2idx_from_dataset
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
-from slp.data.DailyDialog import DailyDialogDatasetEmoTuples
-from slp.data.moviecorpus import MovieCorpusDatasetTuples
+from slp.data.DailyDialog import SubsetDailyDialogDatasetEmoTuples
 from slp.data.collators import NoEmoSeq2SeqCollator
 from torch.optim import Adam
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
 from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
 from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
 
+"""
+This script is used to train your seq2seq model using ready data pickles!!
+"""
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
 BATCH_TRAIN_SIZE = 64
 BATCH_VAL_SIZE = 64
+
 
 def print_model_info(checkpoint_dir,dataset,vocab_size,options):
     info_dir = os.path.join(checkpoint_dir, "info.txt")
@@ -91,14 +95,15 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
 
 
 if __name__ == '__main__':
+
+
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='Main options')
 
-    # select dataset and preprocessing
-    parser.add_argument('-dataset', type=str, help='Dataset used',
+    # dataset file (pickles)
+    parser.add_argument('-datasetfolder', type=str, help='Dataset folder ('
+                                                        'pickles) used',
                         required=True)
-    parser.add_argument('-preprocess', action='store_true', default=False,
-                        help='Preprocess dataset used')
 
     # epochs to run and checkpoint to save model
     parser.add_argument('-iters', type=int, help='iters to train the model',
@@ -165,19 +170,22 @@ if __name__ == '__main__':
                                      specials=DIALOG_SPECIAL_TOKENS)
 
 
-    if options.dataset == "dailydialog":
-        dataset = DailyDialogDatasetEmoTuples('./data/ijcnlp_dailydialog',
-                                           transforms=None)
-    elif options.dataset == "moviecorpus":
-        dataset = MovieCorpusDatasetTuples('./data', transforms=None)
-    else:
-        raise NameError
+    if os.path.exists(options.datasetfolder):
+        with open(os.path.join(options.datasetfolder,'train_set.pkl'),'rb')as \
+                handle:
+            train_list = pickle.load(handle)
+            train_dataset = SubsetDailyDialogDatasetEmoTuples(train_list)
+        handle.close()
+        with open(os.path.join(options.datasetfolder,'val_set.pkl'),'rb')as \
+                handle:
+            val_list = pickle.load(handle)
+            val_dataset = SubsetDailyDialogDatasetEmoTuples(val_list)
 
-    dataset.normalize_data()
-    if options.preprocess:
-        dataset.threshold_data(15, tokenizer=tokenizer)
-        dataset.trim_words(3, tokenizer=tokenizer)
-    vocab_dict = dataset.create_vocab_dict(tokenizer)
+        handle.close()
+    else:
+        raise FileNotFoundError
+
+    vocab_dict = train_dataset.create_vocab_dict(tokenizer)
 
     # load embeddings from file or set None (to be randomly init)
     if options.embeddings is not None:
@@ -206,18 +214,18 @@ if __name__ == '__main__':
                                      specials=DIALOG_SPECIAL_TOKENS)
     to_token_ids = ToTokenIds(word2idx, specials=DIALOG_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = dataset.map(tokenizer).map(to_token_ids).map(to_tensor)
-    print("Dataset size: {}".format(len(dataset)))
+    train_dataset = train_dataset.map(tokenizer).map(to_token_ids).map(
+        to_tensor)
+    print("Dataset size: {}".format(len(train_dataset)))
     print("Vocabulary size: {}".format(vocab_size))
     import ipdb;ipdb.set_trace()
 
     # --- make train and val loaders ---
     collator_fn = NoEmoSeq2SeqCollator(device='cpu')
-    train_loader, val_loader = train_test_split(dataset,
-                                                batch_train=BATCH_TRAIN_SIZE,
-                                                batch_val=BATCH_VAL_SIZE,
-                                                collator_fn=collator_fn,
-                                                test_size=0.2)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_TRAIN_SIZE,
+                              collate_fn=collator_fn)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_TRAIN_SIZE,
+                            collate_fn=collator_fn)
 
     pad_index = word2idx[DIALOG_SPECIAL_TOKENS.PAD.value]
     sos_index = word2idx[DIALOG_SPECIAL_TOKENS.SOS.value]
@@ -232,7 +240,7 @@ if __name__ == '__main__':
     checkpoint_dir = options.ckpt
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-    print_model_info(options.ckpt, dataset, vocab_size, options)
+    print_model_info(options.ckpt, train_dataset, vocab_size, options)
     if options.embeddings is None:
         with open(os.path.join(checkpoint_dir, 'word2idx.pickle'), 'wb') as \
                 file1:

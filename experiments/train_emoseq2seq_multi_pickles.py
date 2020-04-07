@@ -4,18 +4,24 @@ import torch.nn as nn
 import argparse
 import pickle
 
-from slp.data.utils import train_test_split
+from torch.utils.data import DataLoader
 from slp.data.vocab import word2idx_from_dataset
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
-from slp.data.DailyDialog import DailyDialogDatasetEmoTuples
-from slp.data.moviecorpus import MovieCorpusDatasetTuples
-from slp.data.collators import NoEmoSeq2SeqCollator
+from slp.data.DailyDialog import SubsetDailyDialogDatasetEmoTuples
+from slp.data.collators import EmoSeq2SeqCollator
 from torch.optim import Adam
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
-from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
-from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
+from slp.trainer.emoseq2seqtrainer import EmoSeq2SeqIterationsTrainerMultitask
+from slp.modules.seq2seq.seq2seq import Encoder, Decoder
+from slp.modules.emoseq2seq.emoseq2seq_multitask import EmoClassifier,\
+    EmoSeq2SeqMultitask
+
+"""
+This script is used to train your emoseq2seq Multi model using ready data 
+pickles!!
+"""
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
@@ -68,7 +74,9 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                       rnn_type=options.dec_rnn_type,
                       device=DEVICE)
 
-    model = Seq2Seq(encoder, decoder, sos_index, device,
+    classifier = EmoClassifier(options.enc_hidden_size,num_classes=7)
+
+    model = EmoSeq2SeqMultitask(encoder, decoder,classifier, sos_index, device,
                     shared_emb=options.shared_emb)
 
     numparams = sum([p.numel() for p in model.parameters()])
@@ -80,13 +88,16 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
         [p for p in model.parameters() if p.requires_grad],
         lr=options.lr, weight_decay=1e-6)
 
-    criterion = SequenceCrossEntropyLoss(pad_index)
-    perplexity = Perplexity(pad_index)
-    metrics = [perplexity]
-    trainer = Seq2SeqIterationsTrainer(model, optimizer, criterion,
-                                       metrics=metrics, clip=50,
-                                       checkpoint_dir=checkpoint_dir,
-                                       device=device)
+    criterion1 = SequenceCrossEntropyLoss(pad_index)
+    criterion2 = nn.CrossEntropyLoss()
+    metrics = True
+    trainer = EmoSeq2SeqIterationsTrainerMultitask(model, optimizer,
+                                                   criterion1=criterion1,
+                                                   criterion2=criterion2,
+                                                   perplexity=True, clip=50,
+                                                   checkpoint_dir=
+                                                   checkpoint_dir,
+                                                   device=device)
     return trainer
 
 
@@ -94,11 +105,10 @@ if __name__ == '__main__':
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='Main options')
 
-    # select dataset and preprocessing
-    parser.add_argument('-dataset', type=str, help='Dataset used',
+    # dataset file (pickles)
+    parser.add_argument('-datasetfolder', type=str, help='Dataset folder ('
+                                                        'pickles) used',
                         required=True)
-    parser.add_argument('-preprocess', action='store_true', default=False,
-                        help='Preprocess dataset used')
 
     # epochs to run and checkpoint to save model
     parser.add_argument('-iters', type=int, help='iters to train the model',
@@ -164,20 +174,22 @@ if __name__ == '__main__':
     tokenizer = DialogSpacyTokenizer(lower=True,
                                      specials=DIALOG_SPECIAL_TOKENS)
 
+    if os.path.exists(options.datasetfolder):
+        with open(os.path.join(options.datasetfolder,'train_set.pkl'),'rb')as \
+                handle:
+            train_list = pickle.load(handle)
+            train_dataset = SubsetDailyDialogDatasetEmoTuples(train_list)
+        handle.close()
+        with open(os.path.join(options.datasetfolder,'val_set.pkl'),'rb')as \
+                handle:
+            val_list = pickle.load(handle)
+            val_dataset = SubsetDailyDialogDatasetEmoTuples(val_list)
 
-    if options.dataset == "dailydialog":
-        dataset = DailyDialogDatasetEmoTuples('./data/ijcnlp_dailydialog',
-                                           transforms=None)
-    elif options.dataset == "moviecorpus":
-        dataset = MovieCorpusDatasetTuples('./data', transforms=None)
+        handle.close()
     else:
-        raise NameError
+        raise FileNotFoundError
 
-    dataset.normalize_data()
-    if options.preprocess:
-        dataset.threshold_data(15, tokenizer=tokenizer)
-        dataset.trim_words(3, tokenizer=tokenizer)
-    vocab_dict = dataset.create_vocab_dict(tokenizer)
+    vocab_dict = train_dataset.create_vocab_dict(tokenizer)
 
     # load embeddings from file or set None (to be randomly init)
     if options.embeddings is not None:
@@ -206,18 +218,18 @@ if __name__ == '__main__':
                                      specials=DIALOG_SPECIAL_TOKENS)
     to_token_ids = ToTokenIds(word2idx, specials=DIALOG_SPECIAL_TOKENS)
     to_tensor = ToTensor()
-    dataset = dataset.map(tokenizer).map(to_token_ids).map(to_tensor)
-    print("Dataset size: {}".format(len(dataset)))
+    train_dataset = train_dataset.map(tokenizer).map(to_token_ids).map(
+        to_tensor)
+    print("Dataset size: {}".format(len(train_dataset)))
     print("Vocabulary size: {}".format(vocab_size))
     import ipdb;ipdb.set_trace()
 
     # --- make train and val loaders ---
-    collator_fn = NoEmoSeq2SeqCollator(device='cpu')
-    train_loader, val_loader = train_test_split(dataset,
-                                                batch_train=BATCH_TRAIN_SIZE,
-                                                batch_val=BATCH_VAL_SIZE,
-                                                collator_fn=collator_fn,
-                                                test_size=0.2)
+    collator_fn = EmoSeq2SeqCollator(device='cpu')
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_TRAIN_SIZE,
+                              collate_fn=collator_fn)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_TRAIN_SIZE,
+                            collate_fn=collator_fn)
 
     pad_index = word2idx[DIALOG_SPECIAL_TOKENS.PAD.value]
     sos_index = word2idx[DIALOG_SPECIAL_TOKENS.SOS.value]
@@ -232,7 +244,7 @@ if __name__ == '__main__':
     checkpoint_dir = options.ckpt
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-    print_model_info(options.ckpt, dataset, vocab_size, options)
+    print_model_info(options.ckpt, train_dataset, vocab_size, options)
     if options.embeddings is None:
         with open(os.path.join(checkpoint_dir, 'word2idx.pickle'), 'wb') as \
                 file1:
