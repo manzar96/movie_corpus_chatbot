@@ -406,7 +406,7 @@ class SubsetDailyDialogDatasetEmoTuples(Dataset):
     def map(self, t):
         if self.transforms is None:
             self.transforms = []
-            self.transforms.append(t)
+        self.transforms.append(t)
         return self
 
     def __len__(self):
@@ -419,9 +419,7 @@ class SubsetDailyDialogDatasetEmoTuples(Dataset):
             for t in self.transforms:
                 s1 = t(s1)
                 s2 = t(s2)
-
-        tensor_conv = ToTensor()
-        return s1, s2, tensor_conv(int(emo1)), tensor_conv(int(emo2))
+        return s1, s2, emo1, emo2
 
 def make_pickles(outfolder):
 
