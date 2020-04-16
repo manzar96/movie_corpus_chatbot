@@ -24,17 +24,15 @@ class SearcherDecoder(nn.Module):
     def forward(self, dec_input,dec_hidden=None, enc_output=None):
         all_tokens = torch.zeros([0], device=self.device, dtype=torch.long)
         all_scores = torch.zeros([0], device=self.device)
-
+        decoder_outputs = []
         for i in range(0, self.max_len):
 
             input_embed = self.embed_in(dec_input)
             if not self.attention:
-                dec_out, dec_hidden = self.rnn(input_embed,
-                                                       hx=dec_hidden)
+                dec_out, dec_hidden = self.rnn(input_embed, hx=dec_hidden)
                 out = dec_out
             else:
-                dec_out, dec_hidden = self.rnn(input_embed,
-                                                      hx=dec_hidden)
+                dec_out, dec_hidden = self.rnn(input_embed, hx=dec_hidden)
                 attn_weights = self.attn_layer(dec_out, enc_output)
                 context = attn_weights.bmm(enc_output)
                 concat_input = torch.cat((dec_out.squeeze(1),
@@ -42,13 +40,15 @@ class SearcherDecoder(nn.Module):
                 out = torch.tanh(self.concat(concat_input))
 
             out = self.embed_out(out.squeeze(dim=1))
+            decoder_outputs.append(out)
             out = F.softmax(out, dim=1)
             decoder_scores, dec_input = torch.max(out, dim=1)
             all_tokens = torch.cat((all_tokens, dec_input), dim=0)
             all_scores = torch.cat((all_scores, decoder_scores), dim=0)
             dec_input = torch.unsqueeze(dec_input, 0)
 
-        return all_tokens,all_scores
+        dec_output = torch.stack(decoder_outputs).transpose(0, 1).contiguous()
+        return all_tokens, all_scores, dec_output
 
 
 
@@ -73,10 +73,10 @@ class SearcherSeq2Seq(nn.Module):
         decoder_input = decoder_input.to(self.device)
 
         if not self.decoder.attention:
-            tokens,scores = self.decoder(decoder_input,
-                                       dec_hidden=dec_init_hidden)
+            tokens,scores,logits = self.decoder(decoder_input,
+                                         dec_hidden=dec_init_hidden)
         else:
-            tokens,scores = self.decoder(decoder_input,
-                                       dec_hidden=dec_init_hidden,
-                                   enc_output=encoutput)
-        return tokens
+            tokens,scores,logits = self.decoder(decoder_input,
+                                         dec_hidden=dec_init_hidden,
+                                         enc_output=encoutput)
+        return tokens,logits
