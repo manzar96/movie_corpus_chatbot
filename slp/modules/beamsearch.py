@@ -56,7 +56,6 @@ class BeamGraph:
                     ([int(idx) for idx in node.sentence_idxes] + [
                         self.eos_token],
                      node.getScore()))
-                print("yes")
                 continue
             idxes = node.sentence_idxes[:]  # pass by value
             scores = node.sentence_scores[:]  # pass by value
