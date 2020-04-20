@@ -210,14 +210,14 @@ def inputInteraction(model, vocloader, text_preprocessor, text_tokenizer,
 class Seq2SeqTrainerEpochs:
 
     def __init__(self, model,
-                 optimizer, criterion, patience, metrics=None, scheduler=None,
+                 optimizer, criterion, patience,
+                 scheduler=None,
                  checkpoint_dir=None,  clip=None, decreasing_tc=False,
                  device='cpu'):
 
         self.model = model.to(device)
         self.optimizer = optimizer
         self.criterion = criterion
-        self.metrics = metrics
         self.scheduler = scheduler
         self.checkpoint_dir = checkpoint_dir
         self.clip = clip
@@ -242,14 +242,11 @@ class Seq2SeqTrainerEpochs:
         return y_pred, inputs2
 
     def calc_val_loss(self, val_loader):
+        """Validation setting tc to 1(?)"""
         curr_tc = self.model.decoder.get_tc_ratio()
         self.model.decoder.set_tc_ratio(1.0)
         self.model.eval()
         with torch.no_grad():
-
-            # cur_tc = model.dec.get_teacher_forcing()
-            # model.dec.set_teacher_forcing(True)
-
             val_loss, num_words = 0,0
             for index, batch in enumerate(tqdm(val_loader)):
                 preds, targets = self.get_predictions_and_targets(batch)
@@ -268,12 +265,12 @@ class Seq2SeqTrainerEpochs:
                     cur_patience, strt, tc_ratio):
 
         print("Epoch {}:".format(epoch+1))
-        print("Training loss: {} ".format(avg_train_epoch_loss))
-        print("Training ppl: {} ".format(math.exp(avg_train_epoch_loss)))
-        print("Validation loss: {} ".format(avg_val_epoch_loss))
-        print("Validation ppl: {} ".format(math.exp(avg_val_epoch_loss)))
+        print("Train loss: {} | Train PPL: {.3f}".format(
+            avg_train_epoch_loss), math.exp(avg_train_epoch_loss))
+        print("Val loss: {} | Val PPL: {.3f}".format(avg_val_epoch_loss),
+              math.exp(avg_val_epoch_loss))
         print("Patience left: {}".format(self.patience-cur_patience))
-        print("tc ratio", tc_ratio)
+        print("tc ratio: ", tc_ratio)
         print("Time: {} mins".format((time.time() - strt) / 60.0))
         print("++++++++++++++++++")
 
@@ -336,14 +333,7 @@ class Seq2SeqTrainerEpochs:
                 train_epoch_loss += loss.item()
                 loss = loss / target_toks
 
-                # if options.lm:
-                #     lmpreds = lmpreds[:, :-1, :].contiguous().view(-1,
-                #                                                    lmpreds.size(
-                #                                                        2))
-
                 loss.backward(retain_graph=False)
-                # if options.lm:
-                #     lm_loss.backward()
                 self.clip_gnorm()
                 self.optimizer.step()
 
@@ -351,6 +341,7 @@ class Seq2SeqTrainerEpochs:
 
             avg_val_loss = self.calc_val_loss(val_loader)
             avg_train_loss = train_epoch_loss / epoch_num_words
+
             if avg_val_loss < best_val_loss:
                 self.save_epoch(epoch)
                 best_val_loss = avg_val_loss
