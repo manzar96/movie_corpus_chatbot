@@ -53,6 +53,7 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index, eos_index,
                       bidirectional=options.dec_bidirectional,
                       dropout=options.dec_dropout,
                       rnn_type=options.dec_rnn_type,
+                      attention=options.decattn,
                       device=DEVICE)
 
     model = Seq2Seq(encoder, decoder, sos_index, eos_index, device,
@@ -207,6 +208,8 @@ if __name__ == '__main__':
                         default=0, help='decoder dropout')
     parser.add_argument('-dectype', dest='dec_rnn_type',
                         default='gru', help='decoder rnn type')
+    parser.add_argument('-decattn', action='store_true',
+                        default=False, help='decoder luong attn')
 
     options = parser.parse_args()
 

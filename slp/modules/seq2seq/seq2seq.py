@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from slp.modules.embed import Embed
-from slp.modules.attention import LuongAttn
+from slp.modules.attention import LuongAttnLayer
 from slp.modules.beamsearch import BeamNode, BeamGraph
 
 
@@ -144,6 +144,7 @@ class Encoder(nn.Module):
                 last_hidden = hidden[-1].unsqueeze(0)
         return last_hidden
 
+
 class Decoder(nn.Module):
 
     def __init__(self, vocab_size, emb_size, hidden_size,
@@ -167,12 +168,12 @@ class Decoder(nn.Module):
         self.bidirectional = bidirectional
         self.dropout = dropout
         # This attention is being used on each time step of decoder!!!!
-        # TODO: na dw gia tis alles methodous attention pws tha tis valw!!
+        # TODO: na dw gia tis alles methodous attention pws tha tis valw opws
+        #  self attention!!
         self.attention = attention
         if self.attention:
-            self.concat = nn.Linear(hidden_size * 2, hidden_size)
-            self.attn_layer = LuongAttn(method='dot',
-                                        hidden_size=self.hidden_size)
+            self.attn_layer = LuongAttnLayer(method='dot',
+                                             hidden_size=self.hidden_size)
         self._merge_bi = merge_bi
         self.rnn_type = rnn_type
         self.device = device
@@ -219,12 +220,7 @@ class Decoder(nn.Module):
                 out = dec_out
             else:
                 dec_out, dec_hidden = self.rnn(input_embed, hx=dec_hidden)
-                attn_weights = self.attn_layer(dec_out, enc_output)
-                context = attn_weights.bmm(enc_output)
-                concat_input = torch.cat((dec_out.squeeze(1),
-                                          context.squeeze(1)), 1)
-                out = torch.tanh(self.concat(concat_input))
-
+                out, _ = self.attn_layer(dec_out, enc_output)
             out = self.embed_out(out.squeeze(dim=1))
             decoder_outputs.append(out)
             if use_teacher_forcing:
@@ -244,17 +240,11 @@ class Decoder(nn.Module):
     def get_tc_ratio(self):
         return self.teacher_forcing_ratio
 
-    def greedy_decode(self, logits):
-        """Return probability distribution over words."""
-        logits_reshape = logits.view(-1, self.vocab_size)
-        word_probs = F.log_softmax(logits_reshape, dim=1)
-        word_probs = word_probs.view(
-            logits.size()[0], logits.size()[1], logits.size()[2]
-        )
-        return word_probs
 
 class BeamDecoder(nn.Module):
-
+    """
+    This version of Decoder has an implemented version for inference time
+    """
     def __init__(self, vocab_size, emb_size, hidden_size,
                  embeddings=None, bidirectional=False,
                  embeddings_dropout=.1, finetune_embeddings=False,
@@ -279,9 +269,8 @@ class BeamDecoder(nn.Module):
         # TODO: na dw gia tis alles methodous attention pws tha tis valw!!
         self.attention = attention
         if self.attention:
-            self.concat = nn.Linear(hidden_size * 2, hidden_size)
-            self.attn_layer = LuongAttn(method='dot',
-                                        hidden_size=self.hidden_size)
+            self.attn_layer = LuongAttnLayer(method='dot',
+                                             hidden_size=self.hidden_size)
         self._merge_bi = merge_bi
         self.rnn_type = rnn_type
         self.max_seq_len = max_seq_len
@@ -329,12 +318,7 @@ class BeamDecoder(nn.Module):
                 out = dec_out
             else:
                 dec_out, dec_hidden = self.rnn(input_embed, hx=dec_hidden)
-                attn_weights = self.attn_layer(dec_out, enc_output)
-                context = attn_weights.bmm(enc_output)
-                concat_input = torch.cat((dec_out.squeeze(1),
-                                          context.squeeze(1)), 1)
-                out = torch.tanh(self.concat(concat_input))
-
+                out, _ = self.attn_layer(dec_out, enc_output)
             out = self.embed_out(out.squeeze(dim=1))
             decoder_outputs.append(out)
             if use_teacher_forcing:
@@ -347,10 +331,10 @@ class BeamDecoder(nn.Module):
 
         dec_output = torch.stack(decoder_outputs).transpose(0, 1).contiguous()
         return dec_output
-
+'''
     def forward_beamdecode(self, dec_input, eos_token, sos_token,
                            dec_hidden=None, enc_output=None,
-                           beam_size=1,N_best=5):
+                           beam_size=1, N_best=5):
 
         if dec_hidden is None:
             raise NotImplementedError
@@ -365,24 +349,28 @@ class BeamDecoder(nn.Module):
                     dim=1)
                 dec_input = dec_input.to(self.device)
                 dec_input = self.embed_in(dec_input)
-                dec_out, dec_hidden = self.rnn(dec_input,
-                                                          node.decoder_hidden)
+                if not self.attention:
+                    dec_out, dec_hidden = self.rnn(dec_input,
+                                                   node.decoder_hidden)
+                    out = dec_out
+                else:
+                    dec_out, dec_hidden = self.rnn(dec_input, node.dec_hidden)
+                    out, _ = self.attn_layer(dec_out, enc_output)
 
                 # apply MMI anti-language model
                 # if len(sentence.sentence_idxes) < threshold:
                 #     LM_output = conProb(
                 #         [int(idx) for idx in sentence.sentence_idxes])
                 #     decoder_output -= lamda * LM_output.view(1, 1, -1)
-                out = self.embed_out(dec_out)
+
+                out = self.embed_out(out)
                 topv, topi = out.topk(beam_size)
                 beamgraph.addTopk(topi, topv, dec_hidden, node)
 
+        beamgraph.terminal_nodes += [beamgraph.toWordScore(node) for node in
+                                     beamgraph.prev_top_nodes]
 
-        beamgraph.terminal_nodes += [beamgraph.toWordScore(node) for
-                                         node in beamgraph.prev_top_nodes]
-
-        beamgraph.terminal_nodes.sort(key=lambda x: x[1],
-                                            reverse=True)
+        beamgraph.terminal_nodes.sort(key=lambda x: x[1], reverse=True)
 
         terminal_nodes = beamgraph.terminal_nodes
         del beamgraph
@@ -395,16 +383,7 @@ class BeamDecoder(nn.Module):
     def get_tc_ratio(self):
         return self.teacher_forcing_ratio
 
-    def greedy_decode(self, logits):
-        """Return probability distribution over words."""
-        logits_reshape = logits.view(-1, self.vocab_size)
-        word_probs = F.log_softmax(logits_reshape, dim=1)
-        word_probs = word_probs.view(
-            logits.size()[0], logits.size()[1], logits.size()[2]
-        )
-        return word_probs
-
-
+'''
 class Seq2Seq(nn.Module):
     def __init__(self, encoder, decoder, sos_index, eos_index, device,
                  shared_emb=False):

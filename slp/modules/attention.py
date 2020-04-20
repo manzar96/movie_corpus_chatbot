@@ -189,23 +189,21 @@ class MultiheadAttentionParallel(nn.Module):
 MultiheadAttention = MultiheadAttentionParallel
 
 
-# Luong attention layer
+# Luong attention
 class LuongAttn(nn.Module):
-    def __init__(self, method, hidden_size):
+    def __init__(self, method, hidden_size, device='cpu'):
         super(LuongAttn, self).__init__()
         self.method = method
-        if self.method not in ['dot', 'general', 'concat']:
-            raise ValueError(self.method,
-                             "is not an appropriate attention method.")
         self.hidden_size = hidden_size
+        self.device = device
+
         if self.method == 'general':
             self.attn = nn.Linear(self.hidden_size, hidden_size)
         elif self.method == 'concat':
             self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
-            self.v = nn.Parameter(torch.FloatTensor(hidden_size))
+            self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
 
     def dot_score(self, hidden, encoder_output):
-        import ipdb;ipdb.set_trace()
         return torch.sum(hidden * encoder_output, dim=2)
 
     def general_score(self, hidden, encoder_output):
@@ -214,7 +212,7 @@ class LuongAttn(nn.Module):
 
     def concat_score(self, hidden, encoder_output):
         energy = self.attn(torch.cat(
-            (hidden.expand(encoder_output.size(0), -1, -1), encoder_output),
+            (hidden.expand(-1, encoder_output.size(1), -1), encoder_output),
             2)).tanh()
         return torch.sum(self.v * energy, dim=2)
 
@@ -226,5 +224,34 @@ class LuongAttn(nn.Module):
             attn_energies = self.concat_score(hidden, encoder_outputs)
         elif self.method == 'dot':
             attn_energies = self.dot_score(hidden, encoder_outputs)
-
+        else:
+            raise NotImplementedError
         return F.softmax(attn_energies, dim=1).unsqueeze(1)
+
+
+class LuongAttnLayer(nn.Module):
+    def __init__(self, method, hidden_size, device='cpu'):
+        """
+        :param method: luong attention method to be implemented
+        :param hidden_size: hidden size of decoder
+        :param device:
+
+        This class implements luong attention using LuongAttn class!
+        Forward receives the decoder output (last hidden state at timestep
+        t) and encoder output (all timesteps) and returns the output having
+        applied attention and the attn weights!
+        """
+        super(LuongAttnLayer, self).__init__()
+        self.hidden_size = hidden_size
+        self.device = device
+        self.luongattn = LuongAttn(method, hidden_size, device)
+        self.out_linear = nn.Linear(hidden_size*2, hidden_size)
+
+    def forward(self, hidden, encoder_outputs):
+        attn_weights = self.luongattn(hidden, encoder_outputs)
+        context = attn_weights.bmm(encoder_outputs)
+        concat_input = torch.cat((hidden.squeeze(1),
+                                  context.squeeze(1)), 1)
+        out = torch.tanh(self.out_linear(concat_input))
+        out = out.unsqueeze(1)
+        return out, attn_weights
