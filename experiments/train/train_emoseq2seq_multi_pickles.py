@@ -220,6 +220,8 @@ if __name__ == '__main__':
     to_tensor = ToTensor()
     train_dataset = train_dataset.map(tokenizer).map(to_token_ids).map(
         to_tensor)
+    val_dataset = val_dataset.map(tokenizer).map(to_token_ids).map(
+        to_tensor)
     print("Dataset size: {}".format(len(train_dataset)))
     print("Vocabulary size: {}".format(vocab_size))
     import ipdb;ipdb.set_trace()

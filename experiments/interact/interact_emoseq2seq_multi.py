@@ -81,7 +81,7 @@ def evaluate(searcher, idx2word, sentence1, device):
     lengths1 = lengths.to(device)
 
     # Decode sentence with searcher
-    tokens = searcher(input_batch1, lengths1)
+    tokens,_ = searcher(input_batch1, lengths1)
     decoded_words = [idx2word[token.item()] for token in tokens]
 
     return decoded_words

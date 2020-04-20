@@ -86,7 +86,6 @@ def test(outputfolder, test_loader, model, idx2word, device):
         lengths1 = lengths1.to(device)
         tokens,logits = model(input1,lengths1)
         output_words = [idx2word[token.item()] for token in tokens]
-        print(output_words)
         input_words = [idx2word[token.item()] for token in input1.squeeze(0)]
         golden_out_words = [idx2word[token.item()] for token in
                            input2.squeeze(0)]
@@ -94,7 +93,6 @@ def test(outputfolder, test_loader, model, idx2word, device):
         outfile.write("Turn 2: "+str(output_words)+"\n")
         outfile.write("Gold Turn 2: " + str(golden_out_words) + "\n")
         outfile.write("================================================\n")
-        import ipdb;ipdb.set_trace()
         total += 1
 
 
