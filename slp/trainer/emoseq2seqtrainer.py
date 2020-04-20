@@ -67,7 +67,7 @@ class EmoSeq2SeqIterationsTrainerMultitask:
         # acc = acc/x.shape[0]
         # print("Accuracy: ",acc)
         if self.perplexity:
-            ppl = math.exp(loss.item())
+            ppl = math.exp(loss_lm.item())
         else:
             ppl=None
         # Perform backpropagation
@@ -93,7 +93,7 @@ class EmoSeq2SeqIterationsTrainerMultitask:
         loss = 0.8*loss_lm + 0.2*loss_emo1
 
         if self.perplexity:
-            ppl = math.exp(loss.item())
+            ppl = math.exp(loss_lm.item())
         else:
             ppl=None
 
