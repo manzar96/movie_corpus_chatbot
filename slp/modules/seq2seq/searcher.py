@@ -80,3 +80,36 @@ class SearcherSeq2Seq(nn.Module):
                                          dec_hidden=dec_init_hidden,
                                          enc_output=encoutput)
         return tokens,logits
+
+
+class BeamSearcherSeq2Seq(nn.Module):
+    def __init__(self, seq2seq, beam_size, N_best, device):
+        super(BeamSearcherSeq2Seq, self).__init__()
+        self.encoder = seq2seq.encoder
+        self.decoder = seq2seq.decoder
+
+        self.sos_index = seq2seq.sos_index
+        self.eos_index = seq2seq.eos_index
+        self.beam_size = beam_size
+        self.N_best = N_best
+        self.device = device
+
+    def forward(self, inputs, input_lengths):
+        encoutput, hidden = self.encoder(inputs,input_lengths)
+        #last_hidden = self.encoder.get_last_layer_hidden(hidden)
+        dec_init_hidden = hidden[:self.decoder.num_layers]
+
+        # dec_init_hidden = last_hidden.view(self.decoder.num_layers,
+        #                                    target.shape[0],self.decoder.hidden_size)
+
+        decoder_input = torch.tensor([self.sos_index]).long().unsqueeze(dim=1)
+        decoder_input = decoder_input.to(self.device)
+
+        if not self.decoder.attention:
+            outs = self.decoder.forward_beamdecode(decoder_input,
+                                                   self.eos_index,
+                                                   self.sos_index,
+                                                   dec_hidden=dec_init_hidden,
+                                                   beam_size=self.beam_size,
+                                                   N_best=self.N_best)
+        return outs
