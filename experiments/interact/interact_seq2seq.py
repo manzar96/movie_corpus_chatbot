@@ -31,7 +31,7 @@ def normalizeString( s):
     return s
 
 
-def create_model(options, embeddings, emb_dim, vocab_size, sos_index,
+def create_model(options, embeddings, emb_dim, vocab_size, sos_index, eos_index,
                  device):
 
     encoder = Encoder(input_size=emb_dim, vocab_size=vocab_size,
@@ -55,7 +55,7 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index,
                       rnn_type=options.dec_rnn_type,
                       device=DEVICE)
 
-    model = Seq2Seq(encoder, decoder, sos_index, device,
+    model = Seq2Seq(encoder, decoder, sos_index, eos_index, device,
                     shared_emb=options.shared_emb)
     return model
 
@@ -80,7 +80,7 @@ def evaluate(searcher, idx2word, sentence1, device):
     lengths1 = lengths.to(device)
 
     # Decode sentence with searcher
-    tokens = searcher(input_batch1, lengths1)
+    tokens,logits = searcher(input_batch1, lengths1)
     decoded_words = [idx2word[token.item()] for token in tokens]
 
     return decoded_words
@@ -140,7 +140,7 @@ def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
     print("Loaded Embeddings...")
     #  --- load model using loaded embeddings ---
     model = create_model(modeloptions, embeddings, emb_dim, vocab_size,
-                         sos_index, device)
+                         sos_index, eos_index, device)
     model = from_checkpoint(modelcheckpoint, model, map_location='cpu')
     model = model.to(device)
     print("Loaded Model...")
