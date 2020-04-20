@@ -10,7 +10,7 @@ from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
-from slp.modules.seq2seq.searcher import SearcherSeq2Seq
+from slp.modules.seq2seq.inference import GreedySeq2Seq
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
@@ -60,8 +60,9 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index, eos_index,
                     shared_emb=options.shared_emb)
     return model
 
-def create_searcher(model, device):
-    searcher = SearcherSeq2Seq(model,15,device)
+
+def create_searcher(options,model, device):
+    searcher = GreedySeq2Seq(model,options.maxseqlen,device)
     return searcher
 
 
@@ -147,7 +148,7 @@ def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
     print("Loaded Model...")
     # --- create searcher for encoding user's input and for providing an
     # answer ---
-    searcher = create_searcher(model, device)
+    searcher = create_searcher(modeloptions,model, device)
     searcher = searcher.to(device)
     searcher.eval()
     print("Interacting...")
@@ -163,6 +164,8 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('-ckpt', type=str, help='checkpoint folder',
                         required=True)
+    parser.add_argument('-maxseqlen', type=int, default=15,
+                        help='max seq len to be generated')
 
 
     # embeddings options

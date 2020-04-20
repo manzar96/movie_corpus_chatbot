@@ -9,8 +9,8 @@ from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.util import from_checkpoint
 from slp.util.embeddings import EmbeddingsLoader
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
-from slp.modules.seq2seq.seq2seq import Encoder,BeamDecoder,Seq2Seq
-from slp.modules.seq2seq.searcher import BeamSearcherSeq2Seq
+from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
+from slp.modules.seq2seq.inference import BeamSeq2Seq
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
@@ -44,7 +44,7 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index,eos_index,
                       dropout=options.enc_dropout,
                       rnn_type=options.enc_rnn_type,
                       device=DEVICE)
-    decoder = BeamDecoder(emb_size=emb_dim, vocab_size=vocab_size,
+    decoder = Decoder(emb_size=emb_dim, vocab_size=vocab_size,
                       hidden_size=options.dec_hidden_size,
                       embeddings=embeddings,
                       embeddings_dropout=options.embeddings_dropout,
@@ -53,7 +53,7 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index,eos_index,
                       bidirectional=options.dec_bidirectional,
                       dropout=options.dec_dropout,
                       rnn_type=options.dec_rnn_type,
-                      max_seq_len=15,
+                      attention=options.decattn,
                       device=DEVICE)
 
     model = Seq2Seq(encoder, decoder, sos_index, eos_index, device,
@@ -61,9 +61,9 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index,eos_index,
     return model
 
 
-def create_searcher(model, beamsize, N_best, device):
-    searcher = BeamSearcherSeq2Seq(model, beam_size=beamsize, N_best=N_best,
-                                   device=device)
+def create_searcher(options, model, beamsize, N_best, device):
+    searcher = BeamSeq2Seq(model, options.maxseqlen, beam_size=beamsize,
+                           N_best=N_best, device=device)
     return searcher
 
 
@@ -149,7 +149,8 @@ def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
     print("Loaded Model...")
     # --- create searcher for encoding user's input and for providing an
     # answer ---
-    searcher = create_searcher(model,options.beamsize,options.Nbest, device)
+    searcher = create_searcher(modeloptions, model, options.beamsize,
+                               options.Nbest, device)
     searcher = searcher.to(device)
     searcher.eval()
     print("Interacting...")
@@ -165,6 +166,8 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('-ckpt', type=str, help='checkpoint folder',
                         required=True)
+    parser.add_argument('-maxseqlen', type=int, default=15,
+                        help='max seq len to be generated')
     parser.add_argument('-Nbest', type=int,default=1,help='number of responses')
     parser.add_argument('-beamsize', type=int,default=5, help='beamsearch size')
 
@@ -212,6 +215,8 @@ if __name__ == '__main__':
                         default=0, help='decoder dropout')
     parser.add_argument('-dectype', dest='dec_rnn_type',
                         default='gru', help='decoder rnn type')
+    parser.add_argument('-decattn', action='store_true',
+                        default=False, help='decoder luong attn')
 
     options = parser.parse_args()
 

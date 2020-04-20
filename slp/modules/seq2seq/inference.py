@@ -75,7 +75,8 @@ class BeamDecoder(SearcherDecoder):
                                                    node.decoder_hidden)
                     out = dec_out
                 else:
-                    dec_out, dec_hidden = self.rnn(dec_input, node.dec_hidden)
+                    dec_out, dec_hidden = self.rnn(dec_input,
+                                                   node.decoder_hidden)
                     out, _ = self.attn_layer(dec_out, enc_output)
 
                 # apply MMI anti-language model
