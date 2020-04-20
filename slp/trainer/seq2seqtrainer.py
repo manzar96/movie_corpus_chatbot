@@ -367,14 +367,14 @@ class Seq2SeqTrainerEpochs:
 
 class Seq2SeqIterationsTrainer:
     def __init__(self, model,
-                 optimizer, criterion, metrics=None, scheduler=None,
+                 optimizer, criterion, perplexity=True, scheduler=None,
                  checkpoint_dir=None,  validate_every=400,
                  print_every=100,patience=3, clip=None, device='cpu'):
 
         self.model = model.to(device)
         self.optimizer = optimizer
         self.criterion = criterion
-        self.metrics = metrics
+        self.perplexity = perplexity
         self.scheduler = scheduler
         self.checkpoint_dir = checkpoint_dir
         self.validate_every = validate_every
@@ -407,10 +407,10 @@ class Seq2SeqIterationsTrainer:
         outputs, targets = self.get_predictions_and_targets(batch)
         loss = self.criterion(outputs, targets)
 
-        metrics_res = []
-        if self.metrics is not None:
-            for metric in self.metrics:
-                metrics_res.append(metric(outputs, targets).item())
+        if self.perplexity:
+            ppl = math.exp(loss.item())
+        else:
+            ppl=None
 
         # Perform backpropagation
         loss.backward()
@@ -423,7 +423,7 @@ class Seq2SeqIterationsTrainer:
         # Adjust model weights
         self.optimizer.step()
 
-        return loss.item(), metrics_res
+        return loss.item(), ppl
 
     def eval_step(self, batch):
         self.model.eval()
@@ -431,36 +431,31 @@ class Seq2SeqIterationsTrainer:
             outputs, targets = self.get_predictions_and_targets(batch)
         loss = self.criterion(outputs, targets)
 
-        metrics_res = []
-        if self.metrics is not None:
-            for metric in self.metrics:
-                metrics_res.append(metric(outputs, targets).item())
+        if self.perplexity:
+            ppl = math.exp(loss.item())
+        else:
+            ppl=None
 
-        return loss.item(), metrics_res
+        return loss.item(), ppl
 
     def print_iter(self, print_loss, print_ppl, iteration, n_iterations):
         print_loss_avg = print_loss / self.print_every
         print_ppl_avg = print_ppl / self.print_every
-        print("Training results")
-        print(
-            "Iteration: {}; Percent complete: {:.1f}%; Average train loss: {"
-            ":.4f}".format(
-                iteration, iteration / n_iterations * 100, print_loss_avg))
-        print(
-            "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
-                iteration, iteration / n_iterations * 100, print_ppl_avg))
+        print("Iteration: {} | Percent complete: {:.1f}%".format(iteration,
+                                                                 iteration /
+                                                                 n_iterations
+                                                                 * 100))
+        print("Average train loss: {:.4f} | Average train ppl: {:.3f}".format(
+                 print_loss_avg, print_ppl_avg))
 
-    def print_iter_val(self, print_loss, print_ppl, iteration, n_iterations):
+    def print_iter_val(self, print_loss, print_ppl):
         print_loss_avg = print_loss / self.print_every
         print_ppl_avg = print_ppl / self.print_every
-        print("Validation results")
         print(
-            "Iteration: {}; Percent complete: {:.1f}%; Average  loss: {"
-            ":.4f}".format(
-                iteration, iteration / n_iterations * 100, print_loss_avg))
-        print(
-            "Iteration: {}; Percent complete: {:.1f}%; Average PPL: {:.4f}".format(
-                iteration, iteration / n_iterations * 100, print_ppl_avg))
+            "Average val loss: {:.4f} | Average val ppl: {:.3f}".format(
+                print_loss_avg,
+                print_ppl_avg))
+
         print("==============================================================")
 
     def save_iter(self, iteration, loss):
@@ -487,7 +482,7 @@ class Seq2SeqIterationsTrainer:
         val_ppl=0
         best_val_ppl, cur_patience = 10000, 0
 
-        print("Training model....")
+        print("Training model....\n")
         for iteration in range(start_iter, n_iterations + 1):
 
             if cur_patience == self.patience:
@@ -496,18 +491,18 @@ class Seq2SeqIterationsTrainer:
 
             # train step
             mini_batch = selected_batches_train[iteration - 1]
-            loss, metrics_res = self.train_step(mini_batch)
+            loss, ppl = self.train_step(mini_batch)
 
             train_print_loss += loss
-            train_print_ppl += metrics_res[0]
+            train_print_ppl += ppl
 
 
             # eval step
             mini_batch = selected_batches_val[iteration-1]
-            loss_val, metrics_res = self.eval_step(mini_batch)
+            loss_val, ppl = self.eval_step(mini_batch)
             val_print_loss += loss_val
-            val_print_ppl += metrics_res[0]
-            val_ppl += metrics_res[0]
+            val_print_ppl += ppl
+            val_ppl += ppl
 
 
             # Print progress
@@ -518,8 +513,7 @@ class Seq2SeqIterationsTrainer:
                 train_print_loss = 0
                 train_print_ppl = 0
 
-                self.print_iter_val(val_print_loss, val_print_ppl,
-                                    iteration, n_iterations)
+                self.print_iter_val(val_print_loss, val_print_ppl)
                 val_print_loss = 0
                 val_print_ppl = 0
 

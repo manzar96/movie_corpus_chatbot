@@ -13,7 +13,7 @@ from slp.data.DailyDialog import DailyDialogDatasetEmoTuples
 from slp.data.moviecorpus import MovieCorpusDatasetTuples
 from slp.data.collators import NoEmoSeq2SeqCollator
 from torch.optim import Adam
-from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
+from slp.modules.loss import SequenceCrossEntropyLoss
 from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
 from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
 
@@ -45,7 +45,7 @@ def print_model_info(checkpoint_dir,dataset,vocab_size,options):
         info.close()
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
-                    sos_index, checkpoint_dir=None, device=DEVICE):
+                    sos_index,eos_index, checkpoint_dir=None, device=DEVICE):
 
     encoder = Encoder(input_size=emb_dim, vocab_size=vocab_size,
                       hidden_size=options.enc_hidden_size,
@@ -68,7 +68,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                       rnn_type=options.dec_rnn_type,
                       device=DEVICE)
 
-    model = Seq2Seq(encoder, decoder, sos_index, device,
+    model = Seq2Seq(encoder, decoder, sos_index,eos_index, device,
                     shared_emb=options.shared_emb)
 
     numparams = sum([p.numel() for p in model.parameters()])
@@ -81,10 +81,8 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
         lr=options.lr, weight_decay=1e-6)
 
     criterion = SequenceCrossEntropyLoss(pad_index)
-    perplexity = Perplexity(pad_index)
-    metrics = [perplexity]
     trainer = Seq2SeqIterationsTrainer(model, optimizer, criterion,
-                                       metrics=metrics, clip=50,
+                                       perplexity=True, clip=5,
                                        checkpoint_dir=checkpoint_dir,
                                        device=device)
     return trainer
@@ -242,7 +240,7 @@ if __name__ == '__main__':
             pickle.dump(idx2word, file2, protocol=pickle.HIGHEST_PROTOCOL)
 
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-                              pad_index, sos_index, checkpoint_dir,
+                              pad_index, sos_index,eos_index, checkpoint_dir,
                               device=DEVICE)
 
     trainer.fit(train_loader, val_loader, n_iters=options.iters)
