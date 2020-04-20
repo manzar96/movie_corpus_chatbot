@@ -52,15 +52,18 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index,eos_index,
                       num_layers=options.dec_num_layers,
                       bidirectional=options.dec_bidirectional,
                       dropout=options.dec_dropout,
-                      rnn_type=options.dec_rnn_type, max_seq_len=15,
+                      rnn_type=options.dec_rnn_type,
+                      max_seq_len=15,
                       device=DEVICE)
 
     model = Seq2Seq(encoder, decoder, sos_index, eos_index, device,
                     shared_emb=options.shared_emb)
     return model
 
-def create_searcher(model, device):
-    searcher = BeamSearcherSeq2Seq(model,device)
+
+def create_searcher(model, beamsize, N_best, device):
+    searcher = BeamSearcherSeq2Seq(model, beam_size=beamsize, N_best=N_best,
+                                   device=device)
     return searcher
 
 
@@ -71,22 +74,20 @@ def load_embeddings(emb_file, emb_dim):
     return word2idx, idx2word, embeddings
 
 
-def evaluate(searcher, idx2word, sentence1, device):
+def generate(searcher, idx2word, input_sent, device):
+    generated_sent = []
 
-    indexes_batch = sentence1
-    input_batch = torch.unsqueeze(indexes_batch, 0)
+    input_batch = torch.unsqueeze(input_sent, 0)
     lengths = torch.tensor([len(indexes) for indexes in input_batch])
     input_batch1 = input_batch.to(device)
     lengths1 = lengths.to(device)
 
     # Decode sentence with searcher
-    tokens = searcher(input_batch1, lengths1)
-    for i in range(len(tokens)):
-        decoded_words = [idx2word[token] for token in tokens[i]]
-        print("Answer {}: {}".format(i, decoded_words))
-    import ipdb;ipdb.set_trace()
-
-    return decoded_words
+    outputs = searcher(input_batch1, lengths1)
+    # outputs contains list of (tokens,score)
+    for i in range(len(outputs)):
+        generated_sent.append([idx2word[token] for token in outputs[i][0]])
+    return generated_sent
 
 
 def evaluate_input(searcher, word2idx, idx2word, device):
@@ -108,12 +109,11 @@ def evaluate_input(searcher, word2idx, idx2word, device):
             for t in transforms:
                 input_sentence1 = t(input_sentence1)
 
-            output_words = evaluate(searcher, idx2word, input_sentence1,
+            output_words = generate(searcher, idx2word, input_sentence1,
                                     device)
-
-            print(output_words)
-            output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
-            print('Bot:', ' '.join(output_words))
+            print("Bot Answers:")
+            for i in range(len(output_words)):
+                print("Answer {}: {}".format(i+1, output_words[i]))
 
         except KeyError:
             print("Error: Encountered unknown word.")
@@ -149,7 +149,7 @@ def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
     print("Loaded Model...")
     # --- create searcher for encoding user's input and for providing an
     # answer ---
-    searcher = create_searcher(model, device)
+    searcher = create_searcher(model,options.beamsize,options.Nbest, device)
     searcher = searcher.to(device)
     searcher.eval()
     print("Interacting...")
@@ -165,6 +165,8 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('-ckpt', type=str, help='checkpoint folder',
                         required=True)
+    parser.add_argument('-Nbest', type=int,default=1,help='number of responses')
+    parser.add_argument('-beamsize', type=int,default=5, help='beamsearch size')
 
 
     # embeddings options
