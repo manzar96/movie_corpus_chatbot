@@ -247,7 +247,7 @@ class Seq2SeqTrainerEpochs:
         self.model.decoder.set_tc_ratio(1.0)
         self.model.eval()
         with torch.no_grad():
-            val_loss, num_words = 0,0
+            val_loss, num_words,counter = 0,0,0
             for index, batch in enumerate(tqdm(val_loader)):
                 preds, targets = self.get_predictions_and_targets(batch)
                 preds = preds[:, :-1, :].contiguous().view(-1,preds.size(2))
@@ -255,20 +255,20 @@ class Seq2SeqTrainerEpochs:
 
                 # do not include the lM loss, exp(loss) is perplexity
                 loss = self.criterion(preds, targets)
-                num_words += targets.ne(0).long().sum().item()
+                #num_words += targets.ne(0).long().sum().item()
                 val_loss += loss.item()
-
+                counter += 1
             self.model.decoder.set_tc_ratio(curr_tc)
-            return val_loss / num_words
-
+            #return val_loss / num_words
+            return val_loss/ counter
     def print_epoch(self, epoch, avg_train_epoch_loss, avg_val_epoch_loss,
                     cur_patience, strt, tc_ratio):
 
         print("Epoch {}:".format(epoch+1))
-        print("Train loss: {} | Train PPL: {.3f}".format(
-            avg_train_epoch_loss), math.exp(avg_train_epoch_loss))
-        print("Val loss: {} | Val PPL: {.3f}".format(avg_val_epoch_loss),
-              math.exp(avg_val_epoch_loss))
+        print("Train loss: {} | Train PPL: {}".format(
+            avg_train_epoch_loss, math.exp(avg_train_epoch_loss)))
+        print("Val loss: {} | Val PPL: {}".format(avg_val_epoch_loss,
+              math.exp(avg_val_epoch_loss)))
         print("Patience left: {}".format(self.patience-cur_patience))
         print("tc ratio: ", tc_ratio)
         print("Time: {} mins".format((time.time() - strt) / 60.0))
@@ -317,7 +317,7 @@ class Seq2SeqTrainerEpochs:
             if cur_patience == self.patience:
                 break
 
-            train_epoch_loss, epoch_num_words = 0, 0
+            train_epoch_loss, epoch_num_words,counter = 0, 0,0
             strt = time.time()
 
             for index, sample_batch in enumerate(tqdm(train_loader)):
@@ -329,18 +329,21 @@ class Seq2SeqTrainerEpochs:
                 # ne() because 0 is the pad idx
                 target_toks = targets.ne(0).long().sum().item()
 
-                epoch_num_words += target_toks
+                #epoch_num_words += target_toks
                 train_epoch_loss += loss.item()
-                loss = loss / target_toks
+                if index%500 == 0:
+                    print("running loss:  ",loss.item())
+                #loss = loss / target_toks
 
                 loss.backward(retain_graph=False)
                 self.clip_gnorm()
                 self.optimizer.step()
 
                 batch_id += 1
-
+                counter += 1
             avg_val_loss = self.calc_val_loss(val_loader)
-            avg_train_loss = train_epoch_loss / epoch_num_words
+            #avg_train_loss = train_epoch_loss / epoch_num_words
+            avg_train_loss = train_epoch_loss / counter
 
             if avg_val_loss < best_val_loss:
                 self.save_epoch(epoch)

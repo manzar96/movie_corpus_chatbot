@@ -14,7 +14,7 @@ from slp.data.moviecorpus import MovieCorpusDatasetTuples
 from slp.data.collators import NoEmoSeq2SeqCollator
 from torch.optim import Adam
 from slp.modules.loss import SequenceCrossEntropyLoss
-from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
+from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer,Seq2SeqTrainerEpochs
 from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -86,6 +86,10 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                                        perplexity=True, clip=5,
                                        checkpoint_dir=checkpoint_dir,
                                        device=device)
+    # trainer = Seq2SeqTrainerEpochs(model, optimizer, criterion, patience=3,
+    #                                scheduler=None,
+    #                                checkpoint_dir=checkpoint_dir, clip=5,
+    #                                decreasing_tc=True, device=device)
     return trainer
 
 
@@ -243,7 +247,7 @@ if __name__ == '__main__':
             pickle.dump(idx2word, file2, protocol=pickle.HIGHEST_PROTOCOL)
 
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-                              pad_index, sos_index,eos_index, checkpoint_dir,
+                              pad_index, sos_index, eos_index, checkpoint_dir,
                               device=DEVICE)
 
     trainer.fit(train_loader, val_loader, n_iters=options.iters)
