@@ -10,6 +10,7 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.DailyDialog import SubsetDailyDialogDatasetEmoTuples
+from slp.data.moviecorpus import SubsetMovieCorpusTuples
 from slp.data.collators import NoEmoSeq2SeqCollator,Seq2SeqCollator
 from torch.optim import Adam
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
@@ -49,7 +50,7 @@ def print_model_info(checkpoint_dir,dataset,vocab_size,options):
         info.close()
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
-                    sos_index, checkpoint_dir=None, device=DEVICE):
+                    sos_index, eos_index, checkpoint_dir=None, device=DEVICE):
 
     encoder = Encoder(input_size=emb_dim, vocab_size=vocab_size,
                       hidden_size=options.enc_hidden_size,
@@ -70,9 +71,10 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                       bidirectional=options.dec_bidirectional,
                       dropout=options.dec_dropout,
                       rnn_type=options.dec_rnn_type,
+                      attention=options.decattn,
                       device=DEVICE)
 
-    model = Seq2Seq(encoder, decoder, sos_index, device,
+    model = Seq2Seq(encoder, decoder, sos_index,eos_index, device,
                     shared_emb=options.shared_emb)
 
     numparams = sum([p.numel() for p in model.parameters()])
@@ -85,12 +87,14 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
         lr=options.lr, weight_decay=1e-6)
 
     criterion = SequenceCrossEntropyLoss(pad_index)
-    perplexity = Perplexity(pad_index)
-    metrics = [perplexity]
     trainer = Seq2SeqIterationsTrainer(model, optimizer, criterion,
-                                       metrics=metrics, clip=50,
+                                       perplexity=True, clip=5,
                                        checkpoint_dir=checkpoint_dir,
                                        device=device)
+    # trainer = Seq2SeqTrainerEpochs(model, optimizer, criterion, patience=3,
+    #                                scheduler=None,
+    #                                checkpoint_dir=checkpoint_dir, clip=5,
+    #                                decreasing_tc=True, device=device)
     return trainer
 
 
@@ -158,6 +162,8 @@ if __name__ == '__main__':
                         default=0, help='decoder dropout')
     parser.add_argument('-dectype', dest='dec_rnn_type',
                         default='gru', help='decoder rnn type')
+    parser.add_argument('-decattn', action='store_true',
+                        default=False, help='decoder luong attn')
 
     # Teacher forcing options
     parser.add_argument('-tc_ratio', dest='teacherforcing_ratio',
@@ -173,17 +179,37 @@ if __name__ == '__main__':
 
 
     if os.path.exists(options.datasetfolder):
-        with open(os.path.join(options.datasetfolder,'train_set.pkl'),'rb')as \
-                handle:
-            train_list = pickle.load(handle)
-            train_dataset = SubsetDailyDialogDatasetEmoTuples(train_list)
-        handle.close()
-        with open(os.path.join(options.datasetfolder,'val_set.pkl'),'rb')as \
-                handle:
-            val_list = pickle.load(handle)
-            val_dataset = SubsetDailyDialogDatasetEmoTuples(val_list)
+        if options.datasetname == 'dailydialog':
+            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
+                      'rb')as \
+                    handle:
+                train_list = pickle.load(handle)
+                train_dataset = SubsetDailyDialogDatasetEmoTuples(train_list)
+            handle.close()
+            with open(os.path.join(options.datasetfolder, 'val_set.pkl'),
+                      'rb')as \
+                    handle:
+                val_list = pickle.load(handle)
+                val_dataset = SubsetDailyDialogDatasetEmoTuples(val_list)
 
-        handle.close()
+            handle.close()
+        elif options.datasetname == 'moviecorpus':
+            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
+                      'rb')as \
+                    handle:
+                train_list = pickle.load(handle)
+                train_dataset = SubsetMovieCorpusTuples(train_list)
+            handle.close()
+            with open(os.path.join(options.datasetfolder, 'val_set.pkl'),
+                      'rb')as \
+                    handle:
+                val_list = pickle.load(handle)
+                val_dataset = SubsetMovieCorpusTuples(val_list)
+
+            handle.close()
+        else:
+            print("Given datasetname is not implemented!")
+            raise NotImplementedError
     else:
         raise FileNotFoundError
 
@@ -261,7 +287,7 @@ if __name__ == '__main__':
             pickle.dump(idx2word, file2, protocol=pickle.HIGHEST_PROTOCOL)
 
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-                              pad_index, sos_index, checkpoint_dir,
+                              pad_index, sos_index, eos_index, checkpoint_dir,
                               device=DEVICE)
 
     trainer.fit(train_loader, val_loader, n_iters=options.iters)
