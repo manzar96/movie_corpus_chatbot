@@ -38,9 +38,8 @@ def train_test_split(dataset, batch_train, batch_val, collator_fn,
     return dataloaders_from_indices(dataset, train_indices, val_indices,
                                     batch_train, batch_val, collator_fn)
 
-def make_train_val_test_split(dataset,val_size,test_size,\
-                                         shuffle=True,
-                                seed=None):
+def make_train_val_test_split(dataset,val_size,test_size, shuffle=True,
+                              seed=None):
     dataset_size = len(dataset)
     indices = list(range(dataset_size))
     val_test_split = int(np.floor((test_size+val_size) * dataset_size))

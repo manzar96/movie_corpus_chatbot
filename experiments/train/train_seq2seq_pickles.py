@@ -10,7 +10,7 @@ from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.DailyDialog import SubsetDailyDialogDatasetEmoTuples
-from slp.data.collators import NoEmoSeq2SeqCollator
+from slp.data.collators import NoEmoSeq2SeqCollator,Seq2SeqCollator
 from torch.optim import Adam
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
 from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
@@ -103,6 +103,8 @@ if __name__ == '__main__':
     # dataset file (pickles)
     parser.add_argument('-datasetfolder', type=str, help='Dataset folder ('
                                                         'pickles) used',
+                        required=True)
+    parser.add_argument('-datasetname', type=str, help='Dataset name',
                         required=True)
 
     # epochs to run and checkpoint to save model
@@ -223,7 +225,14 @@ if __name__ == '__main__':
     import ipdb;ipdb.set_trace()
 
     # --- make train and val loaders ---
-    collator_fn = NoEmoSeq2SeqCollator(device='cpu')
+    if options.datasetname =='dailydialog':
+        collator_fn = NoEmoSeq2SeqCollator(device='cpu')
+    elif options.datasetname == 'moviecorpus':
+        collator_fn = Seq2SeqCollator(device='cpu')
+    else:
+        print("Given datasetname is not implemented!")
+        raise NotImplementedError
+
     train_loader = DataLoader(train_dataset, batch_size=BATCH_TRAIN_SIZE,
                               collate_fn=collator_fn)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_TRAIN_SIZE,

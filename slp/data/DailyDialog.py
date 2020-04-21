@@ -427,11 +427,10 @@ def make_pickles(outfolder):
     print(dataset[0])
     tokenizer = DialogSpacyTokenizer(lower=True,
                                      specials=DIALOG_SPECIAL_TOKENS)
-    dataset.threshold_data(15, tokenizer=tokenizer)
-    dataset.trim_words(3, tokenizer=tokenizer)
-
+    dataset.threshold_data(20, tokenizer=tokenizer)
+    #dataset.trim_words(3, tokenizer=tokenizer)
     train_list,val_list,test_list = make_train_val_test_split(
-        dataset, val_size=0.2, test_size=0.1)
+        dataset, val_size=0.01, test_size=0.05)
 
     if not os.path.exists(outfolder):
         os.makedirs(outfolder)
@@ -444,4 +443,4 @@ def make_pickles(outfolder):
 
 
 if __name__ == '__main__':
-    make_pickles('./data/dailydialogpickles')
+    make_pickles('./data/pickles/dailydialog')
