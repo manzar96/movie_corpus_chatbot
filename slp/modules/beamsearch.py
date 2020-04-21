@@ -13,7 +13,7 @@ class BeamNode:
         self.sentence_scores = sentence_scores
         self.device = device
 
-    def getScore(self, mode='sum', gamma=0.2):
+    def getScore(self, mode='avg', gamma=0.2):
         if len(self.sentence_scores) == 0:
             print("sentence of length 0")
             if self.device=='cuda':
