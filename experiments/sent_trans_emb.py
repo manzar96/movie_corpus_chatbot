@@ -1,8 +1,10 @@
 import pickle
 import argparse
 import os
+import torch
 from sentence_transformers import SentenceTransformer
 
+from torch.nn.functional import cosine_similarity
 """
 model possible use-cases:
 bert-base-nli-stsb-mean-tokens: Performance: STSbenchmark: 85.14
@@ -40,9 +42,8 @@ if __name__ == "__main__":
     # read sentences
     #sentences = get_sentences(options.sentpickle)
     # get sentence embeddings
-    sentences = ['This framework generates embeddings for each input sentence',
-                 'Sentences are passed as a list of string.',
-                 'The quick brown fox jumps over the lazy dog.']
+    sentences = ["Hi how are you today ?", "Hi, what's up?"]
+
     sent_embeddings = get_semantic_emb(sentences, options.version)
     mydict = dict(zip(sentences, sent_embeddings))
     # store sentence embeddings
@@ -57,3 +58,9 @@ if __name__ == "__main__":
         print("Sentence:", sentence)
         print("Embedding:", embedding)
         print("")
+    import ipdb;ipdb.set_trace()
+
+    tensor1 = torch.tensor(sent_embeddings[0]).unsqueeze(0)
+    tensor2 = torch.tensor(sent_embeddings[1]).unsqueeze(0)
+    out = cosine_similarity(tensor1, tensor2)
+    print(out)
