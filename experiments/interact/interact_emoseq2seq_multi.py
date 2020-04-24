@@ -154,8 +154,7 @@ def input_interaction(modeloptions, embfile, emb_dim, modelcheckpoint,
     evaluate_input(searcher, word2idx, idx2word, device)
 
 
-if __name__ == '__main__':
-
+def make_arg_parser():
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='Main options')
 
@@ -208,7 +207,12 @@ if __name__ == '__main__':
                         default=0, help='decoder dropout')
     parser.add_argument('-dectype', dest='dec_rnn_type',
                         default='gru', help='decoder rnn type')
+    return parser
 
+
+if __name__ == '__main__':
+
+    parser = make_arg_parser()
     options = parser.parse_args()
 
     input_interaction(options,

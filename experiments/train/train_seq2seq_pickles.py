@@ -27,6 +27,44 @@ BATCH_TRAIN_SIZE = 64
 BATCH_VAL_SIZE = 64
 
 
+def load_datasets_from_pickle(options):
+    if os.path.exists(options.datasetfolder):
+        if options.datasetname == 'dailydialog':
+            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
+                      'rb')as \
+                    handle:
+                train_list = pickle.load(handle)
+                train_dataset = SubsetDailyDialogDatasetEmoTuples(train_list)
+            handle.close()
+            with open(os.path.join(options.datasetfolder, 'val_set.pkl'),
+                      'rb')as \
+                    handle:
+                val_list = pickle.load(handle)
+                val_dataset = SubsetDailyDialogDatasetEmoTuples(val_list)
+
+            handle.close()
+        elif options.datasetname == 'moviecorpus':
+            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
+                      'rb')as \
+                    handle:
+                train_list = pickle.load(handle)
+                train_dataset = SubsetMovieCorpusTuples(train_list)
+            handle.close()
+            with open(os.path.join(options.datasetfolder, 'val_set.pkl'),
+                      'rb')as \
+                    handle:
+                val_list = pickle.load(handle)
+                val_dataset = SubsetMovieCorpusTuples(val_list)
+
+            handle.close()
+        else:
+            print("Given datasetname is not implemented!")
+            raise NotImplementedError
+    else:
+        raise FileNotFoundError
+    return train_dataset,val_dataset
+
+
 def print_model_info(checkpoint_dir,dataset,vocab_size,options):
     info_dir = os.path.join(checkpoint_dir, "info.txt")
     with open(info_dir, "w") as info:
@@ -48,6 +86,7 @@ def print_model_info(checkpoint_dir,dataset,vocab_size,options):
                                          options.dec_dropout,
                                          options.dec_hidden_size))
         info.close()
+
 
 def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                     sos_index, eos_index, checkpoint_dir=None, device=DEVICE):
@@ -98,9 +137,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     return trainer
 
 
-if __name__ == '__main__':
-
-
+def make_arg_parser():
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='Main options')
 
@@ -170,49 +207,17 @@ if __name__ == '__main__':
                         default=0.8, type=float, help='teacher forcing ratio')
     parser.add_argument('-decr_tc_ratio', action='store_true', default=False,
                         help='decreasing teacherforcing ratio during training and val')
+    return parser
 
+if __name__ == '__main__':
+
+    parser = make_arg_parser()
     options = parser.parse_args()
 
     # ---  read data to create vocabulary dict ---
     tokenizer = DialogSpacyTokenizer(lower=True,
                                      specials=DIALOG_SPECIAL_TOKENS)
-
-
-    if os.path.exists(options.datasetfolder):
-        if options.datasetname == 'dailydialog':
-            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
-                      'rb')as \
-                    handle:
-                train_list = pickle.load(handle)
-                train_dataset = SubsetDailyDialogDatasetEmoTuples(train_list)
-            handle.close()
-            with open(os.path.join(options.datasetfolder, 'val_set.pkl'),
-                      'rb')as \
-                    handle:
-                val_list = pickle.load(handle)
-                val_dataset = SubsetDailyDialogDatasetEmoTuples(val_list)
-
-            handle.close()
-        elif options.datasetname == 'moviecorpus':
-            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
-                      'rb')as \
-                    handle:
-                train_list = pickle.load(handle)
-                train_dataset = SubsetMovieCorpusTuples(train_list)
-            handle.close()
-            with open(os.path.join(options.datasetfolder, 'val_set.pkl'),
-                      'rb')as \
-                    handle:
-                val_list = pickle.load(handle)
-                val_dataset = SubsetMovieCorpusTuples(val_list)
-
-            handle.close()
-        else:
-            print("Given datasetname is not implemented!")
-            raise NotImplementedError
-    else:
-        raise FileNotFoundError
-
+    train_dataset, val_dataset = load_datasets_from_pickle(options)
     vocab_dict = train_dataset.create_vocab_dict(tokenizer)
 
     # load embeddings from file or set None (to be randomly init)

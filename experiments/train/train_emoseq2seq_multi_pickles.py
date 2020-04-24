@@ -101,7 +101,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     return trainer
 
 
-if __name__ == '__main__':
+def make_arg_parser():
     # --- fix argument parser default values --
     parser = argparse.ArgumentParser(description='Main options')
 
@@ -167,7 +167,12 @@ if __name__ == '__main__':
                         default=0.8, type=float, help='teacher forcing ratio')
     parser.add_argument('-decr_tc_ratio', action='store_true', default=False,
                         help='decreasing teacherforcing ratio during training and val')
+    return parser
 
+
+if __name__ == '__main__':
+
+    parser = make_arg_parser()
     options = parser.parse_args()
 
     # ---  read data to create vocabulary dict ---

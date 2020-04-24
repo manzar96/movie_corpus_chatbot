@@ -27,7 +27,7 @@ def get_sentences(picklefile):
     return sentences
 
 
-if __name__ == "__main__":
+def make_arg_parser():
     parser = argparse.ArgumentParser(description='Main options')
     parser.add_argument('-inpickle', type=str, help='Pickle file with '
                                                       'sentences',
@@ -37,7 +37,12 @@ if __name__ == "__main__":
                         required=True)
     parser.add_argument('-version', type=str, help='Model version to be used',
                         default='bert-base-nli-stsb-mean-tokens')
+    return parser
 
+
+if __name__ == "__main__":
+
+    parser = make_arg_parser()
     options = parser.parse_args()
     # read sentences
     #sentences = get_sentences(options.sentpickle)
