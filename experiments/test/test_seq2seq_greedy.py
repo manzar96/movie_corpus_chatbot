@@ -18,7 +18,6 @@ from slp.modules.seq2seq.inference import GreedySeq2Seq
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(DEVICE)
-BATCH_SIZE=64
 
 def unicodeToAscii( s):
     return ''.join(
