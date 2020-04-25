@@ -7,7 +7,7 @@ from slp.modules.beamsearch import BeamNode, BeamGraph
 from slp.modules.seq2seq.seq2seq import Seq2Seq
 
 class SearcherDecoder(nn.Module):
-    def __init__(self, decoder,max_len,device):
+    def __init__(self, decoder, max_len, eos_index, sos_index, device):
         super(SearcherDecoder, self).__init__()
         self.embed_in = decoder.embed_in
         self.rnn = decoder.rnn
@@ -18,6 +18,8 @@ class SearcherDecoder(nn.Module):
         if self.attention:
             self.attn_layer = decoder.attn_layer
         self.max_seq_len = max_len
+        self.sos_index=sos_index
+        self.eos_index = eos_index
         self.device = device
 
     def forward(self, *args, **kwargs):
@@ -45,6 +47,8 @@ class GreedyDecoder(SearcherDecoder):
             decoder_scores, dec_input = torch.max(out, dim=1)
             all_tokens = torch.cat((all_tokens, dec_input), dim=0)
             all_scores = torch.cat((all_scores, decoder_scores), dim=0)
+            if dec_input == self.eos_index:
+                break
             dec_input = torch.unsqueeze(dec_input, 0)
 
         dec_output = torch.stack(decoder_outputs).transpose(0, 1).contiguous()
@@ -53,13 +57,12 @@ class GreedyDecoder(SearcherDecoder):
 
 class BeamDecoder(SearcherDecoder):
 
-    def forward(self, dec_input, eos_token, sos_token,
-                           dec_hidden=None, enc_output=None,
-                           beam_size=1, N_best=5):
+    def forward(self, dec_input, dec_hidden=None, enc_output=None,
+                beam_size=1, N_best=5):
 
         if dec_hidden is None:
             raise NotImplementedError
-        beamgraph = BeamGraph(beam_size, eos_token, sos_token)
+        beamgraph = BeamGraph(beam_size, self.eos_index, self.sos_index)
         startnode = beamgraph.create_node(dec_hidden)
         beamgraph.prev_top_nodes.append(startnode)
 
@@ -104,9 +107,10 @@ class GreedySeq2Seq(nn.Module):
     def __init__(self, seq2seq, max_len, device):
         super(GreedySeq2Seq, self).__init__()
         self.encoder = seq2seq.encoder
-        self.decoder = GreedyDecoder(seq2seq.decoder,max_len,device)
         self.sos_index = seq2seq.sos_index
         self.eos_index = seq2seq.eos_index
+        self.decoder = GreedyDecoder(seq2seq.decoder,max_len,self.eos_index,
+                                     self.sos_index, device)
         self.device = device
 
     def forward(self, inputs, input_lengths):
@@ -134,9 +138,11 @@ class BeamSeq2Seq(nn.Module):
     def __init__(self, seq2seq, max_len, beam_size, N_best, device):
         super(BeamSeq2Seq, self).__init__()
         self.encoder = seq2seq.encoder
-        self.decoder = BeamDecoder(seq2seq.decoder,max_len,device)
         self.sos_index = seq2seq.sos_index
         self.eos_index = seq2seq.eos_index
+        self.decoder = BeamDecoder(seq2seq.decoder, max_len,
+                                   self.eos_index, self.sos_index, self.device)
+
         self.beam_size = beam_size
         self.N_best = N_best
         self.device = device
