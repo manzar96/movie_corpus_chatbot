@@ -1,5 +1,6 @@
 import copy
 import torch
+import torch.nn as nn
 
 from typing import cast, Callable, Optional, Tuple
 
@@ -42,3 +43,8 @@ def sort_sequences(inputs: torch.Tensor, lengths: torch.Tensor) -> (
         return t[unsorted_idx]
 
     return inputs[sorted_idx], lengths_sorted, unsort
+
+
+
+
+

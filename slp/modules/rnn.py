@@ -73,8 +73,10 @@ class RNN(nn.Module):
         if self.packed_sequence:
             out = self.unpack(out, lengths)
         out = self.drop(out)
-
         last_timestep = self._final_output(out, lengths)
+        """
+        last timestep is the output for last unpadded timestep!
+        """
         return out, last_timestep, hidden
 
 
@@ -113,3 +115,44 @@ class WordRNN(nn.Module):
         else:
             out = last_hidden
         return out
+
+
+class WordRNN2(nn.Module):
+    def __init__(
+            self, embedding_dim, vocab_size, hidden_size, embeddings=None,
+            embeddings_dropout=.1, finetune_embeddings=False,
+            batch_first=True, layers=1, bidirectional=False, merge_bi='cat',
+            dropout=0.1, rnn_type='lstm', packed_sequence=True,
+            attention=False, device='cpu'):
+        super(WordRNN2, self).__init__()
+        self.device = device
+        self.embed = Embed(embedding_dim=embedding_dim,
+                           num_embeddings=vocab_size,
+                           embeddings=embeddings,
+                           dropout=embeddings_dropout,
+                           trainable=finetune_embeddings)
+        self.rnn = RNN(
+            input_size=embedding_dim, hidden_size=hidden_size,
+            batch_first=batch_first, layers=layers, merge_bi=merge_bi,
+            bidirectional=bidirectional, dropout=dropout,
+            rnn_type=rnn_type, packed_sequence=packed_sequence)
+        self.out_size = hidden_size if not bidirectional else 2 * hidden_size
+        self.attention = None
+        if attention:
+            self.attention = Attention(
+                attention_size=self.out_size, dropout=dropout)
+
+    def forward(self, x, lengths):
+        x = self.embed(x)
+        out, last_out, hidden = self.rnn(x, lengths)
+        if self.attention is not None:
+            out, _ = self.attention(
+                out, attention_mask=pad_mask(lengths, device=self.device))
+            out = out.sum(1)
+        else:
+            out = last_out
+        """
+        Word rnn returns as output the output of the last unpadded timestep 
+        (attentions may have been applied)
+        """
+        return out, hidden
