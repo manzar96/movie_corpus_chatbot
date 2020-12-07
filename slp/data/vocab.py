@@ -41,3 +41,35 @@ def word2idx_from_dataset(wordcounts, most_freq=None, extra_tokens=None):
                 idx2word[counter] = word[0]
                 counter += 1
     return word2idx, idx2word
+
+def tensor2text(vec,vocab):
+    """
+    converts vec to txt! padding values are erased!
+    :param vec:
+    :param vocab:
+    :return:
+    """
+    new_vec = []
+    for i in vec:
+        if i == vocab.end_idx:
+            break
+        elif i != vocab.start_idx:
+            new_vec.append(i)
+    words = [vocab.idx2word[idx.item()] for idx in new_vec]
+    text = " ".join(words)
+    return text
+
+
+class Vocab:
+    def __init__(self, word2idx, idx2word, extra_tokens):
+        self.word2idx = word2idx
+        self.idx2word = idx2word
+        self.extra_tokens = extra_tokens
+        self.start_idx = word2idx[extra_tokens.SOS.value]
+        self.end_idx = word2idx[extra_tokens.EOS.value]
+        self.unk_idx = word2idx[extra_tokens.UNK.value]
+        self.pad_idx = word2idx[extra_tokens.PAD.value]
+
+    def __len__(self):
+        return len(self.word2idx)
+

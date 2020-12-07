@@ -1,21 +1,24 @@
 import os
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import argparse
 import pickle
 import sys
 from torch.utils.data import DataLoader
-from slp.data.vocab import word2idx_from_dataset
+from slp.data.vocab import Vocab, word2idx_from_dataset
 from slp.util.embeddings import EmbeddingsLoader, create_emb_file
 from slp.config.special_tokens import DIALOG_SPECIAL_TOKENS
 from slp.data.transforms import DialogSpacyTokenizer, ToTokenIds, ToTensor
 from slp.data.DailyDialog import SubsetDailyDialogDatasetEmoTuples
 from slp.data.moviecorpus import SubsetMovieCorpusTuples
-from slp.data.collators import NoEmoSeq2SeqCollator,Seq2SeqCollator
+from slp.data.collators import NoEmoSeq2SeqCollator, Seq2SeqCollator
 from torch.optim import Adam
 from slp.modules.loss import SequenceCrossEntropyLoss, Perplexity
-from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer
-from slp.modules.seq2seq.seq2seq import Encoder,Decoder,Seq2Seq
+from slp.trainer.seq2seqtrainer import Seq2SeqIterationsTrainer,\
+    Seq2SeqTrainerEpochs
+from slp.modules.seq2seq.seq2seq import Encoder, Decoder, Seq2Seq
+from slp.modules.metrics import BleuMetric, DistinctN
 
 """
 This script is used to train your seq2seq model using ready data pickles!!
@@ -88,8 +91,8 @@ def print_model_info(checkpoint_dir,dataset,vocab_size,options):
         info.close()
 
 
-def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
-                    sos_index, eos_index, checkpoint_dir=None, device=DEVICE):
+def trainer_factory(options, emb_dim, vocab_size, embeddings, vocab,
+                    checkpoint_dir=None, device=DEVICE):
 
     encoder = Encoder(input_size=emb_dim, vocab_size=vocab_size,
                       hidden_size=options.enc_hidden_size,
@@ -103,6 +106,7 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                       device=DEVICE)
     decoder = Decoder(emb_size=emb_dim, vocab_size=vocab_size,
                       hidden_size=options.dec_hidden_size,
+                      start_idx=vocab.start_idx,
                       embeddings=embeddings,
                       embeddings_dropout=options.embeddings_dropout,
                       finetune_embeddings=options.dec_finetune_embeddings,
@@ -113,8 +117,10 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
                       attention=options.decattn,
                       device=DEVICE)
 
-    model = Seq2Seq(encoder, decoder, sos_index,eos_index, device,
+    model = Seq2Seq(encoder, decoder, vocab.start_idx, vocab.end_idx, device,
                     shared_emb=options.shared_emb)
+    torch.save(model.state_dict(), os.path.join(
+        options.ckpt, '{}_{}.pth'.format(0, 'model_checkpoint')))
 
     numparams = sum([p.numel() for p in model.parameters()])
     train_numparams = sum([p.numel() for p in model.parameters() if
@@ -123,18 +129,32 @@ def trainer_factory(options, emb_dim, vocab_size, embeddings, pad_index,
     print('Trainable Parameters: {}'.format(train_numparams))
     optimizer = Adam(
         [p for p in model.parameters() if p.requires_grad],
-        lr=options.lr, weight_decay=1e-6)
+        lr=options.lr, weight_decay=1e-5)
+    exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer,
+                                                 step_size=4, gamma=0.5)
+    criterion = SequenceCrossEntropyLoss(vocab.pad_idx)
 
-    criterion = SequenceCrossEntropyLoss(pad_index)
-    trainer = Seq2SeqIterationsTrainer(model, optimizer, criterion,
-                                       perplexity=True, clip=5,
-                                       checkpoint_dir=checkpoint_dir,
-                                       device=device)
-    # trainer = Seq2SeqTrainerEpochs(model, optimizer, criterion, patience=3,
-    #                                scheduler=None,
-    #                                checkpoint_dir=checkpoint_dir, clip=5,
-    #                                decreasing_tc=True, device=device)
-    return trainer
+    metrics = {'bleu':BleuMetric(), 'distinct':DistinctN()}
+    mytrainer = Seq2SeqTrainerEpochs(model,
+                                     optimizer,
+                                     criterion,
+                                     scheduler=exp_lr_scheduler,
+                                     patience=10,
+                                     checkpoint_dir=checkpoint_dir,
+                                     clip=3,
+                                     metrics=metrics,
+                                     vocab=vocab,
+                                     best_metric='bleu',
+                                     device=device,
+                                     genoptions=options)
+
+    # bleum = BLEU_metric_generation(BATCH_VAL_SIZE,pad_index,idx2word)
+    # trainer = Seq2SeqIterationsTrainer(model, optimizer, criterion,
+    #                                    perplexity=True, clip=5,
+    #                                    checkpoint_dir=checkpoint_dir,
+    #                                    device=device,bleu=bleum)
+
+    return mytrainer
 
 
 def make_arg_parser():
@@ -142,71 +162,152 @@ def make_arg_parser():
     parser = argparse.ArgumentParser(description='Main options')
 
     # dataset file (pickles)
-    parser.add_argument('-datasetfolder', type=str, help='Dataset folder ('
+    modeloptions = parser.add_argument_group('Train and model options')
+    modeloptions.add_argument('-datasetfolder', type=str, help='Dataset folder ('
                                                         'pickles) used',
                         required=True)
-    parser.add_argument('-datasetname', type=str, help='Dataset name',
+    modeloptions.add_argument('-datasetname', type=str, help='Dataset name',
                         required=True)
 
     # epochs to run and checkpoint to save model
-    parser.add_argument('-iters', type=int, help='iters to train the model',
+    modeloptions.add_argument('-iters', type=int, help='iters to train the model',
                         required=True)
-    parser.add_argument('-ckpt', type=str, help='Model checkpoint',
+    modeloptions.add_argument('-ckpt', type=str, help='Model checkpoint',
                         required=True)
-    parser.add_argument('-lr', type=float, default=0.0001, help='learning rate',
+    modeloptions.add_argument('-lr', type=float, default=0.0001, help='learning rate',
                         required=True)
 
     # embeddings options
-    parser.add_argument('-embeddings', type=str, default=None,
+    modeloptions.add_argument('-embeddings', type=str, default=None,
                         help='Embeddings file(optional)')
-    parser.add_argument('-emb_dim', type=int, help='Embeddings dimension',
+    modeloptions.add_argument('-emb_dim', type=int, help='Embeddings dimension',
                         required=True)
-    parser.add_argument('-embdrop', dest='embeddings_dropout', type=float,
+    modeloptions.add_argument('-embdrop', dest='embeddings_dropout', type=float,
                         default=0, help='embeddings dropout')
-    parser.add_argument('-shared_emb', action='store_true',
+    modeloptions.add_argument('-shared_emb', action='store_true',
                         default=False, help='shared embedding layer')
 
     # Encoder options
-    parser.add_argument('-enchidden', dest='enc_hidden_size', type=int,
+    modeloptions.add_argument('-enchidden', dest='enc_hidden_size', type=int,
                         default=256, help='encoder hidden size')
-    parser.add_argument('-encembtrain', dest='enc_finetune_embeddings',
+    modeloptions.add_argument('-encembtrain', dest='enc_finetune_embeddings',
                         action='store_true', default=False,
                         help='encoder finetune embeddings')
-    parser.add_argument('-encnumlayers', dest='enc_num_layers', type=int,
+    modeloptions.add_argument('-encnumlayers', dest='enc_num_layers', type=int,
                         default=1, help='encoder number of layers')
-    parser.add_argument('-encbi', dest='enc_bidirectional',
+    modeloptions.add_argument('-encbi', dest='enc_bidirectional',
                         action='store_true',
                         default=False, help='bidirectional enc')
-    parser.add_argument('-encdrop', dest='enc_dropout', type=float,
+    modeloptions.add_argument('-encdrop', dest='enc_dropout', type=float,
                         default=0, help='encoder dropout')
-    parser.add_argument('-enctype', dest='enc_rnn_type',
+    modeloptions.add_argument('-enctype', dest='enc_rnn_type',
                         default='gru', help='bidirectional enc')
 
     # Decoder options
-    parser.add_argument('-dechidden', dest='dec_hidden_size',
+    modeloptions.add_argument('-dechidden', dest='dec_hidden_size',
                         type=int,
                         default=256, help='decoder hidden size')
-    parser.add_argument('-decembtrain', dest='dec_finetune_embeddings',
+    modeloptions.add_argument('-decembtrain', dest='dec_finetune_embeddings',
                         action='store_true',
                         default=False, help='decoder finetune embeddings')
-    parser.add_argument('-decnumlayers', dest='dec_num_layers',
+    modeloptions.add_argument('-decnumlayers', dest='dec_num_layers',
                         type=int,
                         default=1, help='decoder number of layers')
-    parser.add_argument('-decbi', dest='dec_bidirectional',
+    modeloptions.add_argument('-decbi', dest='dec_bidirectional',
                         action='store_true',
                         default=False, help='bidirectional decoder')
-    parser.add_argument('-decdrop', dest='dec_dropout', type=float,
+    modeloptions.add_argument('-decdrop', dest='dec_dropout', type=float,
                         default=0, help='decoder dropout')
-    parser.add_argument('-dectype', dest='dec_rnn_type',
+    modeloptions.add_argument('-dectype', dest='dec_rnn_type',
                         default='gru', help='decoder rnn type')
-    parser.add_argument('-decattn', action='store_true',
+    modeloptions.add_argument('-decattn', action='store_true',
                         default=False, help='decoder luong attn')
 
     # Teacher forcing options
-    parser.add_argument('-tc_ratio', dest='teacherforcing_ratio',
-                        default=0.8, type=float, help='teacher forcing ratio')
-    parser.add_argument('-decr_tc_ratio', action='store_true', default=False,
+    modeloptions.add_argument('-tc_ratio', dest='teacherforcing_ratio',
+                        default=1, type=float, help='teacher forcing ratio')
+    modeloptions.add_argument('-decr_tc_ratio', action='store_true', default=False,
                         help='decreasing teacherforcing ratio during training and val')
+
+    gener = parser.add_argument_group('Generation options')
+    gener.add_argument(
+        '-beam_size',
+        type=int,
+        default=1,
+        help='Beam size, if 1 then greedy search'
+    )
+    gener.add_argument(
+        '-beam_min_length',
+        type=int,
+        default=1,
+        help='Minimum length of prediction to be generated by the beam search'
+    )
+    gener.add_argument(
+        '-beam_context_block_ngram',
+        type=int,
+        default=-1,
+        help=(
+            'Size n-grams to block in beam search from the context. val <= 0 '
+            'implies no blocking **NOT USED**'
+        )
+    )
+    gener.add_argument(
+        '-beam_block_ngram',
+        type=int,
+        default=-1,
+        help='Size n-grams to block in beam search. val <= 0 implies no '
+             'blocking **NOT USED**'
+    )
+    gener.add_argument(
+        '-beam_length_penalty',
+        type=float,
+        default=0.75,
+        help='Applies a length penalty. Set to 0 for no penalty.'
+    )
+    gener.add_argument(
+        '-skip_generation',
+        default=False,
+        help='Skip beam search. Useful for speeding up training, '
+             'if perplexity is the validation metric.'
+    )
+    gener.add_argument(
+        '-method',
+        choices={'beam', 'greedy', 'topk', 'nucleus', 'delayedbeam'},
+        default='greedy',
+        help='Generation algorithm'
+    )
+    gener.add_argument(
+        '-topk', type=int, default=10, help='K used in Top K sampling'
+    )
+    gener.add_argument(
+        '-topp', type=float, default=0.9, help='p used in nucleus sampling'
+    )
+    gener.add_argument(
+        '-beam_delay', type=int, default=30, help='used in delayedbeam search'
+    )
+    gener.add_argument(
+        '-temperature',
+        type=float,
+        default=1.0,
+        help='temperature to add during decoding'
+    )
+    gener.add_argument(
+        '-compute_tokenized_bleu',
+        default=False,
+        help='if true, compute tokenized bleu scores **NOT USED**'
+    )
+    gener.add_argument(
+        '-maxlen',
+        type=int,
+        default=20,
+        help='max length of sequence to be generated'
+    )
+    gener.add_argument(
+        '-N_best',
+        type=int,
+        default=1,
+        help='N best answers to take after beamsearch'
+    )
     return parser
 
 if __name__ == '__main__':
@@ -239,7 +340,8 @@ if __name__ == '__main__':
                                                    DIALOG_SPECIAL_TOKENS)
         embeddings = None
         emb_dim = options.emb_dim
-    vocab_size = len(word2idx)
+    vocab = Vocab(word2idx, idx2word, DIALOG_SPECIAL_TOKENS)
+    vocab_size = len(vocab)
 
     # --- set dataset transforms ---
     tokenizer = DialogSpacyTokenizer(lower=True,
@@ -253,7 +355,6 @@ if __name__ == '__main__':
         to_tensor)
     print("Dataset size: {}".format(len(train_dataset)))
     print("Vocabulary size: {}".format(vocab_size))
-    import ipdb;ipdb.set_trace()
 
     # --- make train and val loaders ---
     if options.datasetname =='dailydialog':
@@ -265,18 +366,14 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     train_loader = DataLoader(train_dataset, batch_size=BATCH_TRAIN_SIZE,
-                              collate_fn=collator_fn)
+                              collate_fn=collator_fn,drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_TRAIN_SIZE,
-                            collate_fn=collator_fn)
+                            collate_fn=collator_fn,drop_last=True)
 
-    pad_index = word2idx[DIALOG_SPECIAL_TOKENS.PAD.value]
-    sos_index = word2idx[DIALOG_SPECIAL_TOKENS.SOS.value]
-    eos_index = word2idx[DIALOG_SPECIAL_TOKENS.EOS.value]
-    unk_index = word2idx[DIALOG_SPECIAL_TOKENS.UNK.value]
-    print("sos index {}".format(sos_index))
-    print("eos index {}".format(eos_index))
-    print("pad index {}".format(pad_index))
-    print("unk index {}".format(unk_index))
+    print("sos index {}".format(vocab.start_idx))
+    print("eos index {}".format(vocab.end_idx))
+    print("pad index {}".format(vocab.pad_idx))
+    print("unk index {}".format(vocab.unk_idx))
 
     # --- make model and train it ---
     checkpoint_dir = options.ckpt
@@ -292,8 +389,11 @@ if __name__ == '__main__':
             pickle.dump(idx2word, file2, protocol=pickle.HIGHEST_PROTOCOL)
 
     trainer = trainer_factory(options, emb_dim, vocab_size, embeddings,
-                              pad_index, sos_index, eos_index, checkpoint_dir,
+                              vocab, checkpoint_dir,
                               device=DEVICE)
 
-    trainer.fit(train_loader, val_loader, n_iters=options.iters)
+    trainer.fit(train_loader, val_loader, epochs=options.iters)
+
+    for epoch in range(options.iters):
+        print(trainer.metrics_recoder[epoch])
     print("data stored in: {}\n".format(checkpoint_dir))

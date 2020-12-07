@@ -60,8 +60,8 @@ def create_model(options, embeddings, emb_dim, vocab_size, sos_index,eos_index,
                       attention=options.decattn,
                       device=DEVICE)
 
-    model = Seq2Seq(encoder, decoder, sos_index, device,
-                    shared_emb=options.shared_emb)
+    model = Seq2Seq(encoder, decoder, sos_index, eos_index,
+                    shared_emb=options.shared_emb, device=device)
     return model
 
 
@@ -81,7 +81,7 @@ def load_embeddings(emb_file, emb_dim):
 def load_dataset_from_pickle(options):
     if os.path.exists(options.datasetfolder):
         if options.datasetname == 'dailydialog':
-            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
+            with open(os.path.join(options.datasetfolder, 'test_set.pkl'),
                       'rb')as \
                     handle:
                 test_list = pickle.load(handle)
@@ -89,7 +89,7 @@ def load_dataset_from_pickle(options):
             handle.close()
 
         elif options.datasetname == 'moviecorpus':
-            with open(os.path.join(options.datasetfolder, 'train_set.pkl'),
+            with open(os.path.join(options.datasetfolder, 'test_set.pkl'),
                       'rb')as \
                     handle:
                 test_list = pickle.load(handle)
@@ -137,10 +137,7 @@ def test(outputfolder, test_loader, model, idx2word, device):
         all_inputs.append(input_words)
         all_targets.append(golden_out_words)
         all_gen.append(generated_sent)
-
-    metrics = calc_metrics()
-    print(metrics)
-
+    outfile.close()
         # output_words = [idx2word[token.item()] for token in tokens]
         # input_words = [idx2word[token.item()] for token in input1.squeeze(0)]
         # golden_out_words = [idx2word[token.item()] for token in

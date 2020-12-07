@@ -189,6 +189,15 @@ class MultiheadAttentionParallel(nn.Module):
 MultiheadAttention = MultiheadAttentionParallel
 
 
+
+def neginf(dtype: torch.dtype) -> float:
+    """
+    Return a representable finite number near -inf for a dtype.
+    """
+
+    return -1e20
+
+
 # Luong attention
 class LuongAttn(nn.Module):
     def __init__(self, method, hidden_size, device='cpu'):
@@ -201,10 +210,15 @@ class LuongAttn(nn.Module):
             self.attn = nn.Linear(self.hidden_size, hidden_size)
         elif self.method == 'concat':
             self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
-            self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
+            # self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
+            # from parlAI
+            self.v = nn.Linear(hidden_size, 1, bias=False)
 
     def dot_score(self, hidden, encoder_output):
-        return torch.sum(hidden * encoder_output, dim=2)
+        #return torch.sum(hidden * encoder_output, dim=2)
+
+        enc_t = encoder_output.transpose(1, 2)
+        return torch.bmm(hidden, enc_t).squeeze(1)
 
     def general_score(self, hidden, encoder_output):
         energy = self.attn(encoder_output)
@@ -214,9 +228,10 @@ class LuongAttn(nn.Module):
         energy = self.attn(torch.cat(
             (hidden.expand(-1, encoder_output.size(1), -1), encoder_output),
             2)).tanh()
-        return torch.sum(self.v * energy, dim=2)
+        return self.v(energy).squeeze(2)
+        #return torch.sum(self.v * energy, dim=2)
 
-    def forward(self, hidden, encoder_outputs):
+    def forward(self, hidden, encoder_outputs, attn_mask):
         # Calculate the attention weights (energies) based on the given method
         if self.method == 'general':
             attn_energies = self.general_score(hidden, encoder_outputs)
@@ -226,7 +241,10 @@ class LuongAttn(nn.Module):
             attn_energies = self.dot_score(hidden, encoder_outputs)
         else:
             raise NotImplementedError
-        return F.softmax(attn_energies, dim=1).unsqueeze(1)
+
+        # TODO: add attention masking!!
+        attn_energies.masked_fill_((~attn_mask), neginf(attn_energies.dtype))
+        return F.softmax(attn_energies, dim=1)
 
 
 class LuongAttnLayer(nn.Module):
@@ -247,11 +265,32 @@ class LuongAttnLayer(nn.Module):
         self.luongattn = LuongAttn(method, hidden_size, device)
         self.out_linear = nn.Linear(hidden_size*2, hidden_size)
 
-    def forward(self, hidden, encoder_outputs):
-        attn_weights = self.luongattn(hidden, encoder_outputs)
-        context = attn_weights.bmm(encoder_outputs)
-        concat_input = torch.cat((hidden.squeeze(1),
+    def forward(self, inputs, hidden, attn_params):
+        """
+        Compute attention over attn_params given input and hidden states.
+
+        :param input:       input state. will be combined with applied
+                            attention.
+        :param hidden:      hidden state from model. will be used to select
+                            states to attend to in from the attn_params.
+        :param attn_params: tuple of encoder output states and a mask showing
+                            which input indices are nonzero.
+
+        :returns: output, attn_weights
+                  output is a new state of same size as input state `xes`.
+                  attn_weights are the weights given to each state in the
+                  encoder outputs.
+        """
+
+        # TODO: se periptwsi pou exw lstm kanw attention mono sto "hidden"
+        #  state oxi sto cell state ara na valw elegxo kai hidden = hidden[0]
+        #  (see ParlAI!!!)
+        last_hidden = hidden[-1].unsqueeze(1)
+        enc_outputs, attn_mask = attn_params
+        attn_weights = self.luongattn(last_hidden, enc_outputs, attn_mask)
+
+        context = torch.bmm(attn_weights.unsqueeze(1), enc_outputs)
+        concat_input = torch.cat((inputs.squeeze(1),
                                   context.squeeze(1)), 1)
-        out = torch.tanh(self.out_linear(concat_input))
-        out = out.unsqueeze(1)
+        out = torch.tanh(self.out_linear(concat_input).unsqueeze(1))
         return out, attn_weights
